@@ -1,0 +1,8 @@
+@{ ViewData["Title"] = "Admin Dashboard"; }
+<h2>Admin Dashboard</h2>
+<div class="row mt-4">
+    <div class="col-md-3"><div class="card border-primary text-center p-3 mb-3"><h5>Branches</h5><a asp-action="Branches" class="btn btn-outline-primary">Manage</a></div></div>
+    <div class="col-md-3"><div class="card border-success text-center p-3 mb-3"><h5>Courses</h5><a asp-action="Courses" class="btn btn-outline-success">Manage</a></div></div>
+    <div class="col-md-3"><div class="card border-warning text-center p-3 mb-3"><h5>Faculty Assignments</h5><a asp-action="FacultyAssignments" class="btn btn-outline-warning">Manage</a></div></div>
+    <div class="col-md-3"><div class="card border-info text-center p-3 mb-3"><h5>Students</h5><a asp-controller="Students" asp-action="Index" class="btn btn-outline-info">Manage</a></div></div>
+</div>

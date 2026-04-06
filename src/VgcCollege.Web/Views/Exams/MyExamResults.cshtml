@@ -1,0 +1,69 @@
+@model VgcCollege.Web.Models.StudentExamResultsViewModel
+@{
+    ViewData["Title"] = "My Exam Results";
+}
+
+<h2>🎓 My Exam Results</h2>
+<p class="text-muted">Only released results are shown below.</p>
+
+@if (!Model.Items.Any())
+{
+    <div class="alert alert-info">No released exam results yet.</div>
+}
+else
+{
+    <table class="table table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Exam</th>
+                <th>Course</th>
+                <th>Date</th>
+                <th>Score</th>
+                <th>%</th>
+                <th>Grade</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td>@item.Exam.Title</td>
+                    <td>@item.Exam.Course.Name</td>
+                    <td>@item.Exam.Date.ToString("dd MMM yyyy")</td>
+                    <td>
+                        @if (item.Score.HasValue)
+                        {
+                            @($"{item.Score}/{item.Exam.MaxScore}")
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td>
+                        @if (item.Percentage.HasValue)
+                        {
+                            var pct = item.Percentage.Value;
+                            var badgeClass = pct >= 70 ? "bg-success" : pct >= 50 ? "bg-warning text-dark" : "bg-danger";
+                            <span class="badge @badgeClass">@pct%</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td>
+                        @if (!string.IsNullOrEmpty(item.Grade))
+                        {
+                            <strong>@item.Grade</strong>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

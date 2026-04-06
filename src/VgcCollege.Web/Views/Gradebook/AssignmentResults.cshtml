@@ -1,0 +1,62 @@
+@model VgcCollege.Web.Models.AssignmentResultsViewModel
+@{
+    ViewData["Title"] = "Assignment Results";
+}
+
+<h2>📝 Results: @Model.Assignment.Title</h2>
+<p class="text-muted">
+    Course: <strong>@Model.Assignment.Course.Name</strong> &nbsp;|&nbsp;
+    Max Score: <strong>@Model.Assignment.MaxScore</strong> &nbsp;|&nbsp;
+    Due: <strong>@Model.Assignment.DueDate.ToString("dd MMM yyyy")</strong>
+</p>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+@if (!Model.Entries.Any())
+{
+    <div class="alert alert-info">No students enrolled in this course.</div>
+}
+else
+{
+    <form asp-action="SaveAssignmentResults" asp-route-assignmentId="@Model.Assignment.Id" method="post">
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Student</th>
+                    <th>Student #</th>
+                    <th>Score (max @Model.Assignment.MaxScore)</th>
+                    <th>Feedback</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Model.Entries.Count; i++)
+                {
+                    var entry = Model.Entries[i];
+                    <tr>
+                        <td>@entry.StudentProfile.Name</td>
+                        <td>@entry.StudentProfile.StudentNumber</td>
+                        <td>
+                            <input type="hidden" name="results[@i].StudentProfileId" value="@entry.StudentProfile.Id" />
+                            <input type="number" name="results[@i].Score" value="@entry.Score"
+                                   class="form-control form-control-sm" style="width:100px"
+                                   min="0" max="@Model.Assignment.MaxScore" step="0.5" placeholder="—" />
+                        </td>
+                        <td>
+                            <input type="text" name="results[@i].Feedback" value="@entry.Feedback"
+                                   class="form-control form-control-sm" placeholder="Optional feedback" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <button type="submit" class="btn btn-success">💾 Save Results</button>
+        <a asp-action="Assignments" class="btn btn-outline-secondary ms-2">Back</a>
+    </form>
+}

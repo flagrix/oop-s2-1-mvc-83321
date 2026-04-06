@@ -1,0 +1,34 @@
+@model VgcCollege.Web.Models.CourseEnrolment
+@{ ViewData["Title"] = "Attendance"; }
+<h2>Attendance — @Model.StudentProfile?.Name</h2>
+<p class="text-muted">Course: <strong>@Model.Course?.Name</strong></p>
+
+<a asp-action="Create" asp-route-enrolmentId="@Model.Id" class="btn btn-primary mb-3">+ Add Record</a>
+
+@{
+    var total = Model.AttendanceRecords.Count;
+    var present = Model.AttendanceRecords.Count(r => r.Present);
+    var pct = total > 0 ? (int)Math.Round((double)present / total * 100) : 0;
+}
+<div class="alert alert-info">
+    Attendance: <strong>@present / @total sessions (@pct%)</strong>
+    <div class="progress mt-2" style="height:10px">
+        <div class="progress-bar @(pct >= 80 ? "bg-success" : "bg-warning")" style="width:@pct%"></div>
+    </div>
+</div>
+
+<table class="table table-sm table-hover">
+    <thead class="table-dark"><tr><th>Week</th><th>Date</th><th>Present</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var r in Model.AttendanceRecords.OrderBy(r => r.WeekNumber))
+        {
+            <tr>
+                <td>Week @r.WeekNumber</td>
+                <td>@r.Date.ToString("dd/MM/yyyy")</td>
+                <td>@(r.Present ? "✅ Yes" : "❌ No")</td>
+                <td><a asp-action="Edit" asp-route-id="@r.Id" class="btn btn-sm btn-outline-warning">Edit</a></td>
+            </tr>
+        }
+    </tbody>
+</table>
+<a asp-controller="Enrolments" asp-action="Index" class="btn btn-secondary mt-2">Back</a>

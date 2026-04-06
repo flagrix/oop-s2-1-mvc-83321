@@ -1,0 +1,66 @@
+@model IEnumerable<VgcCollege.Web.Models.Assignment>
+@{
+    ViewData["Title"] = "Assignments";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>📋 Assignments</h2>
+    <a asp-action="CreateAssignment" class="btn btn-primary">+ New Assignment</a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <select name="courseId" asp-items="@ViewBag.Courses" class="form-select">
+            <option value="">— All Courses —</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-secondary">Filter</button>
+        <a asp-action="Assignments" class="btn btn-outline-secondary ms-1">Clear</a>
+    </div>
+</form>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">No assignments found.</div>
+}
+else
+{
+    <table class="table table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Title</th>
+                <th>Course</th>
+                <th>Branch</th>
+                <th>Max Score</th>
+                <th>Due Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in Model)
+            {
+                <tr>
+                    <td>@a.Title</td>
+                    <td>@a.Course.Name</td>
+                    <td>@a.Course.Branch?.Name</td>
+                    <td>@a.MaxScore</td>
+                    <td>@a.DueDate.ToString("dd MMM yyyy")</td>
+                    <td>
+                        <a asp-action="EditAssignment" asp-route-id="@a.Id" class="btn btn-sm btn-outline-secondary">Edit</a>
+                        <a asp-action="AssignmentResults" asp-route-assignmentId="@a.Id" class="btn btn-sm btn-outline-primary">Results</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

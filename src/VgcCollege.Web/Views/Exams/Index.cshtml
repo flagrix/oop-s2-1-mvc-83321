@@ -1,0 +1,86 @@
+@model IEnumerable<VgcCollege.Web.Models.Exam>
+@{
+    ViewData["Title"] = "Exams";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>🎓 Exams</h2>
+    <a asp-action="Create" class="btn btn-primary">+ New Exam</a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <select name="courseId" asp-items="@ViewBag.Courses" class="form-select">
+            <option value="">— All Courses —</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-secondary">Filter</button>
+        <a asp-action="Index" class="btn btn-outline-secondary ms-1">Clear</a>
+    </div>
+</form>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">No exams found.</div>
+}
+else
+{
+    <table class="table table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Title</th>
+                <th>Course</th>
+                <th>Date</th>
+                <th>Max Score</th>
+                <th>Results Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var exam in Model)
+            {
+                <tr>
+                    <td>@exam.Title</td>
+                    <td>@exam.Course.Name</td>
+                    <td>@exam.Date.ToString("dd MMM yyyy")</td>
+                    <td>@exam.MaxScore</td>
+                    <td>
+                        @if (exam.ResultsReleased)
+                        {
+                            <span class="badge bg-success">✅ Released</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning text-dark">🔒 Provisional</span>
+                        }
+                    </td>
+                    <td class="d-flex gap-1 flex-wrap">
+                        <a asp-action="Edit" asp-route-id="@exam.Id" class="btn btn-sm btn-outline-secondary">Edit</a>
+                        <a asp-action="ExamResults" asp-route-examId="@exam.Id" class="btn btn-sm btn-outline-primary">Results</a>
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <form asp-action="ToggleRelease" asp-route-id="@exam.Id" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit"
+                                        class="btn btn-sm @(exam.ResultsReleased ? "btn-outline-warning" : "btn-outline-success")"
+                                        onclick="return confirm('@(exam.ResultsReleased ? "Hide results from students?" : "Release results to students?")')">
+                                    @(exam.ResultsReleased ? "🔒 Hide" : "🔓 Release")
+                                </button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

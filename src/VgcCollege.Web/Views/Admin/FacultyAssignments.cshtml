@@ -1,0 +1,13 @@
+@model IEnumerable<VgcCollege.Web.Models.FacultyCourseAssignment>
+@{ ViewData["Title"] = "Faculty Assignments"; }
+<h2>Faculty Course Assignments</h2>
+<a asp-action="AssignFaculty" class="btn btn-primary mb-3">+ Assign Faculty</a>
+<table class="table table-striped">
+    <thead class="table-dark"><tr><th>Faculty</th><th>Course</th></tr></thead>
+    <tbody>
+        @foreach (var a in Model)
+        {
+            <tr><td>@a.FacultyProfile?.Name</td><td>@a.Course?.Name</td></tr>
+        }
+    </tbody>
+</table>

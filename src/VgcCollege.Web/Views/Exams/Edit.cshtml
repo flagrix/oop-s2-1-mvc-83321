@@ -1,0 +1,47 @@
+@model VgcCollege.Web.Models.Exam
+@{
+    ViewData["Title"] = "Edit Exam";
+}
+
+<h2>✏️ Edit Exam</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Edit" method="post">
+            <input asp-for="Id" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="mb-3">
+                <label asp-for="Title" class="form-label"></label>
+                <input asp-for="Title" class="form-control" />
+                <span asp-validation-for="Title" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="CourseId" class="form-label">Course</label>
+                <select asp-for="CourseId" asp-items="@ViewBag.Courses" class="form-select"></select>
+                <span asp-validation-for="CourseId" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="MaxScore" class="form-label">Max Score</label>
+                <input asp-for="MaxScore" class="form-control" type="number" min="1" />
+                <span asp-validation-for="MaxScore" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Date" class="form-label">Exam Date</label>
+                <input asp-for="Date" class="form-control" type="date" />
+                <span asp-validation-for="Date" class="text-danger"></span>
+            </div>
+            <div class="mb-3 form-check">
+                <input asp-for="ResultsReleased" class="form-check-input" type="checkbox" />
+                <label asp-for="ResultsReleased" class="form-check-label">Results Released (visible to students)</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a asp-action="Index" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+}

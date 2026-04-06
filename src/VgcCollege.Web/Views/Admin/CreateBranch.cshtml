@@ -1,0 +1,13 @@
+@model VgcCollege.Web.Models.Branch
+@{ ViewData["Title"] = "Add Branch"; }
+<h2>Add Branch</h2>
+<div class="row"><div class="col-md-5">
+<form asp-action="CreateBranch" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+    <div class="mb-3"><label asp-for="Name" class="form-label"></label><input asp-for="Name" class="form-control" /><span asp-validation-for="Name" class="text-danger"></span></div>
+    <div class="mb-3"><label asp-for="Address" class="form-label"></label><input asp-for="Address" class="form-control" /><span asp-validation-for="Address" class="text-danger"></span></div>
+    <button type="submit" class="btn btn-primary">Create</button>
+    <a asp-action="Branches" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+</div></div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

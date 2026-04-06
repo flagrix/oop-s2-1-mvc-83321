@@ -1,0 +1,11 @@
+@{ ViewData["Title"] = "Assign Faculty"; }
+<h2>Assign Faculty to Course</h2>
+<div class="row"><div class="col-md-5">
+<form asp-action="AssignFaculty" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+    <div class="mb-3"><label class="form-label">Faculty</label><select name="FacultyProfileId" class="form-select" asp-items="ViewBag.Faculty"></select></div>
+    <div class="mb-3"><label class="form-label">Course</label><select name="CourseId" class="form-select" asp-items="ViewBag.Courses"></select></div>
+    <button type="submit" class="btn btn-primary">Assign</button>
+    <a asp-action="FacultyAssignments" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+</div></div>

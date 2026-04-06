@@ -1,0 +1,44 @@
+@model VgcCollege.Web.Models.Assignment
+@{
+    ViewData["Title"] = "Create Assignment";
+}
+
+<h2>📋 New Assignment</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="CreateAssignment" method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="mb-3">
+                <label asp-for="Title" class="form-label"></label>
+                <input asp-for="Title" class="form-control" />
+                <span asp-validation-for="Title" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="CourseId" class="form-label">Course</label>
+                <select asp-for="CourseId" asp-items="@ViewBag.Courses" class="form-select">
+                    <option value="">— Select —</option>
+                </select>
+                <span asp-validation-for="CourseId" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="MaxScore" class="form-label">Max Score</label>
+                <input asp-for="MaxScore" class="form-control" type="number" min="1" />
+                <span asp-validation-for="MaxScore" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="DueDate" class="form-label">Due Date</label>
+                <input asp-for="DueDate" class="form-control" type="date" />
+                <span asp-validation-for="DueDate" class="text-danger"></span>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Create</button>
+            <a asp-action="Assignments" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+}

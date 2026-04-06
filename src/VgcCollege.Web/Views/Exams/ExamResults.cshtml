@@ -1,0 +1,76 @@
+@model VgcCollege.Web.Models.ExamResultsViewModel
+@{
+    ViewData["Title"] = "Exam Results";
+}
+
+<h2>📝 Results: @Model.Exam.Title</h2>
+<p class="text-muted">
+    Course: <strong>@Model.Exam.Course.Name</strong> &nbsp;|&nbsp;
+    Date: <strong>@Model.Exam.Date.ToString("dd MMM yyyy")</strong> &nbsp;|&nbsp;
+    Max Score: <strong>@Model.Exam.MaxScore</strong> &nbsp;|&nbsp;
+    Status:
+    @if (Model.Exam.ResultsReleased)
+    {
+        <span class="badge bg-success">✅ Released</span>
+    }
+    else
+    {
+        <span class="badge bg-warning text-dark">🔒 Provisional — hidden from students</span>
+    }
+</p>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+@if (!Model.Entries.Any())
+{
+    <div class="alert alert-info">No students enrolled in this course.</div>
+}
+else
+{
+    <form asp-action="SaveExamResults" asp-route-examId="@Model.Exam.Id" method="post">
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Student</th>
+                    <th>Student #</th>
+                    <th>Score (max @Model.Exam.MaxScore)</th>
+                    <th>Grade</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Model.Entries.Count; i++)
+                {
+                    var entry = Model.Entries[i];
+                    <tr>
+                        <td>@entry.StudentProfile.Name</td>
+                        <td>@entry.StudentProfile.StudentNumber</td>
+                        <td>
+                            <input type="hidden" name="results[@i].StudentProfileId" value="@entry.StudentProfile.Id" />
+                            <input type="number" name="results[@i].Score" value="@entry.Score"
+                                   class="form-control form-control-sm" style="width:110px"
+                                   min="0" max="@Model.Exam.MaxScore" step="0.5" placeholder="—" />
+                        </td>
+                        <td>
+                            <select name="results[@i].Grade" class="form-select form-select-sm" style="width:90px">
+                                <option value="">—</option>
+                                @foreach (var g in new[] { "A+", "A", "B+", "B", "C+", "C", "D", "F" })
+                                {
+                                    <option value="@g" selected="@(entry.Grade == g)">@g</option>
+                                }
+                            </select>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <button type="submit" class="btn btn-success">💾 Save Results</button>
+        <a asp-action="Index" class="btn btn-outline-secondary ms-2">Back</a>
+    </form>
+}

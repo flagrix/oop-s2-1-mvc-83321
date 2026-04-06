@@ -1,0 +1,18 @@
+@model VgcCollege.Web.Models.CourseEnrolment
+@{ ViewData["Title"] = "Edit Enrolment"; }
+<h2>Edit Enrolment</h2>
+<p><strong>Student:</strong> @Model.StudentProfile?.Name &nbsp; <strong>Course:</strong> @Model.Course?.Name</p>
+<div class="row"><div class="col-md-4">
+<form asp-action="Edit" method="post">
+    <input asp-for="Id" type="hidden" /><input asp-for="StudentProfileId" type="hidden" /><input asp-for="CourseId" type="hidden" />
+    <div class="mb-3"><label asp-for="EnrolDate" class="form-label"></label><input asp-for="EnrolDate" class="form-control" type="date" /></div>
+    <div class="mb-3">
+        <label asp-for="Status" class="form-label"></label>
+        <select asp-for="Status" class="form-select">
+            <option value="0">Active</option><option value="1">Withdrawn</option><option value="2">Completed</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-warning">Save</button>
+    <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+</div></div>

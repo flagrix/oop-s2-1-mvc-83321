@@ -1,0 +1,20 @@
+@model IEnumerable<VgcCollege.Web.Models.CourseEnrolment>
+@{ ViewData["Title"] = "My Enrolments"; }
+<h2>My Enrolments</h2>
+<table class="table table-striped">
+    <thead class="table-dark"><tr><th>Course</th><th>Branch</th><th>Start</th><th>End</th><th>Enrol Date</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var e in Model)
+        {
+            <tr>
+                <td>@e.Course?.Name</td>
+                <td>@e.Course?.Branch?.Name</td>
+                <td>@e.Course?.StartDate.ToString("dd/MM/yyyy")</td>
+                <td>@e.Course?.EndDate.ToString("dd/MM/yyyy")</td>
+                <td>@e.EnrolDate.ToString("dd/MM/yyyy")</td>
+                <td><span class="badge @(e.Status == VgcCollege.Web.Models.EnrolmentStatus.Active ? "bg-success" : "bg-secondary")">@e.Status</span></td>
+                <td><a asp-controller="Attendance" asp-action="MyAttendance" class="btn btn-sm btn-outline-info">My Attendance</a></td>
+            </tr>
+        }
+    </tbody>
+</table>

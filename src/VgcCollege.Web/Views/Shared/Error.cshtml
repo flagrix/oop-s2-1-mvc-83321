@@ -1,0 +1,19 @@
+@model VgcCollege.Web.Models.ErrorViewModel
+@{
+    ViewData["Title"] = "Error";
+}
+
+<div class="text-center py-5">
+    <div class="fs-1 mb-3">⚠️</div>
+    <h1 class="display-6">Something went wrong</h1>
+    <p class="lead text-muted">An unexpected error occurred. Please try again or contact support.</p>
+
+    @if (Model?.ShowRequestId == true)
+    {
+        <p class="text-muted small">
+            Request ID: <code>@Model.RequestId</code>
+        </p>
+    }
+
+    <a href="/" class="btn btn-primary mt-3">← Return to Home</a>
+</div>

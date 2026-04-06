@@ -1,0 +1,68 @@
+@model VgcCollege.Web.Models.StudentGradebookViewModel
+@{
+    ViewData["Title"] = "My Gradebook";
+}
+
+<h2>📚 My Gradebook</h2>
+
+@if (Model.AverageScore.HasValue)
+{
+    var avg = Model.AverageScore.Value;
+    var badgeClass = avg >= 70 ? "bg-success" : avg >= 50 ? "bg-warning text-dark" : "bg-danger";
+    <div class="alert alert-light border d-inline-block mb-3">
+        Overall Average: <span class="badge @badgeClass fs-6">@avg%</span>
+    </div>
+}
+
+@if (!Model.Items.Any())
+{
+    <div class="alert alert-info">No assignment results yet.</div>
+}
+else
+{
+    <table class="table table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Assignment</th>
+                <th>Course</th>
+                <th>Due Date</th>
+                <th>Score</th>
+                <th>%</th>
+                <th>Feedback</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr class="@(!item.Score.HasValue ? "table-warning" : "")">
+                    <td>@item.Assignment.Title</td>
+                    <td>@item.Assignment.Course.Name</td>
+                    <td>@item.Assignment.DueDate.ToString("dd MMM yyyy")</td>
+                    <td>
+                        @if (item.Score.HasValue)
+                        {
+                            @($"{item.Score}/{item.Assignment.MaxScore}")
+                        }
+                        else
+                        {
+                            <span class="text-muted">Not graded yet</span>
+                        }
+                    </td>
+                    <td>
+                        @if (item.Percentage.HasValue)
+                        {
+                            var pct = item.Percentage.Value;
+                            var badgeClass = pct >= 70 ? "bg-success" : pct >= 50 ? "bg-warning text-dark" : "bg-danger";
+                            <span class="badge @badgeClass">@pct%</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td class="text-muted fst-italic">@(item.Feedback ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

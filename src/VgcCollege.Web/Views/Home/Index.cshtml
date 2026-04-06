@@ -1,0 +1,191 @@
+@{
+    ViewData["Title"] = "Acme Global College";
+}
+
+<div class="text-center py-4">
+    <h1 class="display-5 fw-bold">🎓 Acme Global College</h1>
+    <p class="lead text-muted">Multi-Branch Student &amp; Course Management System</p>
+</div>
+
+@if (User.Identity?.IsAuthenticated == true)
+{
+    @if (User.IsInRole("Admin"))
+    {
+        <h5 class="text-muted mb-3">⚙️ Admin Dashboard</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card h-100 border-danger">
+                    <div class="card-body">
+                        <h6 class="card-title">🏢 Branches &amp; Courses</h6>
+                        <p class="card-text small text-muted">Manage college branches and courses.</p>
+                        <a asp-controller="Admin" asp-action="Branches" class="btn btn-sm btn-outline-danger me-1">Branches</a>
+                        <a asp-controller="Admin" asp-action="Courses" class="btn btn-sm btn-danger">Courses</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-primary">
+                    <div class="card-body">
+                        <h6 class="card-title">👨‍🎓 Students &amp; Enrolments</h6>
+                        <p class="card-text small text-muted">Register students and manage enrolments.</p>
+                        <a asp-controller="Students" asp-action="Index" class="btn btn-sm btn-outline-primary me-1">Students</a>
+                        <a asp-controller="Enrolments" asp-action="Index" class="btn btn-sm btn-primary">Enrolments</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-success">
+                    <div class="card-body">
+                        <h6 class="card-title">👩‍🏫 Faculty Assignments</h6>
+                        <p class="card-text small text-muted">Assign faculty members to courses.</p>
+                        <a asp-controller="Admin" asp-action="FacultyAssignments" class="btn btn-sm btn-success">Faculty Assignments</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-warning">
+                    <div class="card-body">
+                        <h6 class="card-title">📋 Gradebook</h6>
+                        <p class="card-text small text-muted">Manage assignments and student grades.</p>
+                        <a asp-controller="Gradebook" asp-action="Assignments" class="btn btn-sm btn-warning">Assignments</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-info">
+                    <div class="card-body">
+                        <h6 class="card-title">🎓 Exams</h6>
+                        <p class="card-text small text-muted">Manage exams and release results to students.</p>
+                        <a asp-controller="Exams" asp-action="Index" class="btn btn-sm btn-info">Exams</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (User.IsInRole("Faculty"))
+    {
+        <h5 class="text-muted mb-3">👩‍🏫 Faculty Dashboard</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card h-100 border-primary">
+                    <div class="card-body">
+                        <h6 class="card-title">👨‍🎓 My Students</h6>
+                        <p class="card-text small text-muted">View students enrolled in your courses.</p>
+                        <a asp-controller="Students" asp-action="Index" class="btn btn-sm btn-primary">My Students</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-success">
+                    <div class="card-body">
+                        <h6 class="card-title">📋 Enrolments</h6>
+                        <p class="card-text small text-muted">View course enrolments for your courses.</p>
+                        <a asp-controller="Enrolments" asp-action="Index" class="btn btn-sm btn-success">Enrolments</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-warning">
+                    <div class="card-body">
+                        <h6 class="card-title">📝 Gradebook</h6>
+                        <p class="card-text small text-muted">Enter and manage assignment results.</p>
+                        <a asp-controller="Gradebook" asp-action="Assignments" class="btn btn-sm btn-warning">Gradebook</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-info">
+                    <div class="card-body">
+                        <h6 class="card-title">🎓 Exams</h6>
+                        <p class="card-text small text-muted">View and enter exam results.</p>
+                        <a asp-controller="Exams" asp-action="Index" class="btn btn-sm btn-info">Exams</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (User.IsInRole("Student"))
+    {
+        <h5 class="text-muted mb-3">👤 Student Dashboard</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card h-100 border-primary">
+                    <div class="card-body">
+                        <h6 class="card-title">👤 My Profile</h6>
+                        <p class="card-text small text-muted">View your student profile and details.</p>
+                        <a asp-controller="Students" asp-action="MyProfile" class="btn btn-sm btn-primary">My Profile</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-success">
+                    <div class="card-body">
+                        <h6 class="card-title">📚 My Enrolments</h6>
+                        <p class="card-text small text-muted">View your course enrolments.</p>
+                        <a asp-controller="Enrolments" asp-action="MyEnrolments" class="btn btn-sm btn-success">My Enrolments</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-secondary">
+                    <div class="card-body">
+                        <h6 class="card-title">✅ My Attendance</h6>
+                        <p class="card-text small text-muted">Check your weekly attendance records.</p>
+                        <a asp-controller="Attendance" asp-action="MyAttendance" class="btn btn-sm btn-secondary">My Attendance</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-warning">
+                    <div class="card-body">
+                        <h6 class="card-title">📝 My Grades</h6>
+                        <p class="card-text small text-muted">View your assignment results and feedback.</p>
+                        <a asp-controller="Gradebook" asp-action="MyGradebook" class="btn btn-sm btn-warning">My Grades</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-info">
+                    <div class="card-body">
+                        <h6 class="card-title">🎓 My Exam Results</h6>
+                        <p class="card-text small text-muted">View released exam results and grades.</p>
+                        <a asp-controller="Exams" asp-action="MyExamResults" class="btn btn-sm btn-info">My Exams</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <div class="text-center mt-4">
+        <p class="text-muted mb-3">Please log in to access the system.</p>
+        <a asp-area="Identity" asp-page="/Account/Login" class="btn btn-primary btn-lg">Login</a>
+    </div>
+    <hr class="my-5" />
+    <div class="row text-center g-4">
+        <div class="col-md-4">
+            <div class="p-3">
+                <div class="fs-1">🏢</div>
+                <h6>3 Branches</h6>
+                <p class="text-muted small">Dublin, Cork, and Galway campuses</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3">
+                <div class="fs-1">📚</div>
+                <h6>Course Management</h6>
+                <p class="text-muted small">Enrolments, attendance, and gradebooks</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3">
+                <div class="fs-1">🔒</div>
+                <h6>Role-Based Access</h6>
+                <p class="text-muted small">Admin, Faculty, and Student portals</p>
+            </div>
+        </div>
+    </div>
+}

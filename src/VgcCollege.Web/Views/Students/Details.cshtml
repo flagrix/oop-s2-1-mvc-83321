@@ -1,0 +1,31 @@
+@model VgcCollege.Web.Models.StudentProfile
+@{ ViewData["Title"] = "Student Details"; }
+<h2>@Model.Name</h2>
+<div class="card mb-4">
+    <div class="card-body">
+        <dl class="row">
+            <dt class="col-sm-3">Student Number</dt><dd class="col-sm-9">@Model.StudentNumber</dd>
+            <dt class="col-sm-3">Email</dt><dd class="col-sm-9">@Model.Email</dd>
+            <dt class="col-sm-3">Phone</dt><dd class="col-sm-9">@Model.Phone</dd>
+            <dt class="col-sm-3">Address</dt><dd class="col-sm-9">@Model.Address</dd>
+            <dt class="col-sm-3">Date of Birth</dt><dd class="col-sm-9">@Model.DateOfBirth?.ToString("dd/MM/yyyy")</dd>
+        </dl>
+    </div>
+</div>
+
+<h4>Enrolments</h4>
+<table class="table table-sm">
+    <thead><tr><th>Course</th><th>Enrol Date</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var e in Model.Enrolments)
+        {
+            <tr>
+                <td>@e.Course?.Name</td>
+                <td>@e.EnrolDate.ToString("dd/MM/yyyy")</td>
+                <td><span class="badge @(e.Status == VgcCollege.Web.Models.EnrolmentStatus.Active ? "bg-success" : "bg-secondary")">@e.Status</span></td>
+                <td><a asp-controller="Attendance" asp-action="Index" asp-route-enrolmentId="@e.Id" class="btn btn-sm btn-outline-primary">Attendance</a></td>
+            </tr>
+        }
+    </tbody>
+</table>
+<a asp-action="Index" class="btn btn-secondary mt-2">Back</a>

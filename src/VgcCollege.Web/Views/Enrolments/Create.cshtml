@@ -1,0 +1,29 @@
+@{ ViewData["Title"] = "Enrol Student"; }
+<h2>Enrol Student in Course</h2>
+<div class="row"><div class="col-md-6">
+<form asp-action="Create" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+    <div class="mb-3">
+        <label class="form-label">Student</label>
+        <select name="StudentProfileId" class="form-select" asp-items="ViewBag.Students"><option value="">-- Select --</option></select>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Course</label>
+        <select name="CourseId" class="form-select" asp-items="ViewBag.Courses"><option value="">-- Select --</option></select>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Enrol Date</label>
+        <input name="EnrolDate" type="date" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Status</label>
+        <select name="Status" class="form-select">
+            <option value="0">Active</option>
+            <option value="1">Withdrawn</option>
+            <option value="2">Completed</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Enrol</button>
+    <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+</div></div>

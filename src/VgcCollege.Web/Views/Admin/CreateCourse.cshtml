@@ -1,0 +1,15 @@
+@model VgcCollege.Web.Models.Course
+@{ ViewData["Title"] = "Add Course"; }
+<h2>Add Course</h2>
+<div class="row"><div class="col-md-5">
+<form asp-action="CreateCourse" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+    <div class="mb-3"><label asp-for="Name" class="form-label"></label><input asp-for="Name" class="form-control" /></div>
+    <div class="mb-3"><label asp-for="BranchId" class="form-label">Branch</label><select asp-for="BranchId" class="form-select" asp-items="ViewBag.Branches"></select></div>
+    <div class="mb-3"><label asp-for="StartDate" class="form-label"></label><input asp-for="StartDate" class="form-control" type="date" /></div>
+    <div class="mb-3"><label asp-for="EndDate" class="form-label"></label><input asp-for="EndDate" class="form-control" type="date" /></div>
+    <button type="submit" class="btn btn-primary">Create</button>
+    <a asp-action="Courses" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+</div></div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

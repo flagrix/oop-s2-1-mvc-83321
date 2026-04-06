@@ -1,0 +1,15 @@
+@model VgcCollege.Web.Models.AttendanceRecord
+@{ ViewData["Title"] = "Add Attendance"; var enrolment = ViewBag.Enrolment as VgcCollege.Web.Models.CourseEnrolment; }
+<h2>Add Attendance Record</h2>
+<p class="text-muted">Student: <strong>@enrolment?.StudentProfile?.Name</strong> — Course: <strong>@enrolment?.Course?.Name</strong></p>
+<div class="row"><div class="col-md-4">
+<form asp-action="Create" method="post">
+    <input asp-for="CourseEnrolmentId" type="hidden" />
+    <div class="mb-3"><label asp-for="WeekNumber" class="form-label"></label><input asp-for="WeekNumber" class="form-control" type="number" min="1" /><span asp-validation-for="WeekNumber" class="text-danger"></span></div>
+    <div class="mb-3"><label asp-for="Date" class="form-label"></label><input asp-for="Date" class="form-control" type="date" /><span asp-validation-for="Date" class="text-danger"></span></div>
+    <div class="mb-3 form-check"><input asp-for="Present" class="form-check-input" type="checkbox" /><label asp-for="Present" class="form-check-label">Present</label></div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a asp-action="Index" asp-route-enrolmentId="@Model.CourseEnrolmentId" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+</div></div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }
