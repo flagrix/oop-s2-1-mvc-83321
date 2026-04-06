@@ -2,12 +2,13 @@ name: ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+  workflow_dispatch: # 👉 bouton "Run workflow" dans GitHub
 
 jobs:
-  build-and-test:
+  build-test-publish:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,7 +18,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
 
       - name: Restore
         run: dotnet restore
@@ -25,5 +26,36 @@ jobs:
       - name: Build (Release)
         run: dotnet build --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal
+      # 👉 Exécute explicitement le projet de tests
+      - name: Run Tests
+        run: dotnet test tests/VgcCollege.Tests/VgcCollege.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      # 👉 Publie l'application (à adapter au projet principal)
+      - name: Publish
+        run: dotnet publish --configuration Release --output ./publish
+
+      # 👉 Upload de l’artefact (utile pour déploiement)
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: ./publish
+
+  # 👉 Job de déploiement (exemple simple)
+  deploy:
+    needs: build-test-publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app
+          path: ./publish
+
+      # 🔥 EXEMPLE : déploiement (à adapter selon ton infra)
+      - name: Deploy (example)
+        run: |
+          echo "Déploiement en cours..."
+          # Exemple :
+          # rsync, scp, Azure, AWS, etc.
