@@ -1,10 +1,5 @@
-# Acme Global College – Student & Course Management System
 
-ASP.NET Core 8 MVC application with EF Core (SQLite), ASP.NET Core Identity, role-based authorization, and xUnit tests.
-
----
-
-## 🚀 How to run locally
+## How to run locally
 
 ### Prerequisites
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8)
@@ -14,7 +9,7 @@ ASP.NET Core 8 MVC application with EF Core (SQLite), ASP.NET Core Identity, rol
 
 ```bash
 # Clone the repo
-git clone https://github.com/<your-username>/oop-s2-1-mvc-<student-number>.git
+git clone https://github.com/<your-username>/oop-s2-1-mvc-83321.git
 cd oop-s2-1-mvc-<student-number>
 
 # Restore packages
@@ -31,7 +26,7 @@ Then open: **https://localhost:5001** or **http://localhost:5000**
 
 ---
 
-## 🔐 Seeded Demo Accounts
+## Seeded Demo Accounts
 
 | Role    | Email                          | Password     |
 |---------|-------------------------------|--------------|
@@ -43,7 +38,7 @@ Then open: **https://localhost:5001** or **http://localhost:5000**
 
 ---
 
-## 🧪 How to run tests
+## How to run tests
 
 ```bash
 # From the repo root
@@ -90,7 +85,7 @@ Tests are in `tests/VgcCollege.Tests/` and use the EF Core **InMemory** provider
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 VgcCollege/
@@ -136,25 +131,3 @@ VgcCollege/
 │   └── workflows/ci.yml              # Restore → Build (Release) → Test
 └── README.md
 ```
-
----
-
-## 🏗️ Design Decisions & Assumptions
-
-- **SQLite** is used for zero-config local development. To switch to SQL Server: update the connection string in `appsettings.json` and change `UseSqlite` → `UseSqlServer` in `Program.cs`.
-- **Seeding at startup**: `DbSeeder.SeedAsync()` is called in `Program.cs`. It checks `Any()` before inserting, so it is safe to call on every startup.
-- **RBAC — server-side enforcement**: All authorization uses `[Authorize(Roles = "...")]` on controller actions *and* filtered EF queries. Faculty queries always join through `FacultyCourseAssignments`; Student queries always filter by `IdentityUserId`.
-- **Provisional exam results**: `Exam.ResultsReleased = false` means students receive an empty list — the filter is applied in the EF query (`Where(e => e.ResultsReleased)`), not just in the UI.
-- **Gradebook upsert**: When saving results, the controller checks if a result already exists for that student/assignment pair and updates it rather than inserting a duplicate. This mirrors real-world "re-grade" workflows.
-- **Error handling**: Friendly error pages for 4xx/5xx via `UseStatusCodePagesWithReExecute`. Access-denied redirects to `/AccessDenied`. Raw exceptions never leak to the user in production.
-
----
-
-## 📊 Milestone Status
-
-| Milestone | Description                          | Status                         |
-|-----------|--------------------------------------|--------------------------------|
-| 1         | Auth + Roles + Database + Seed data  | ✅ Complete                    |
-| 2         | Enrolments + Attendance              | ✅ Complete                    |
-| 3         | Gradebook + Exams + Release rules    | ✅ Complete                    |
-| 4         | Tests + CI + Final polish            | ✅ Complete (35 tests, CI ✅)  |
