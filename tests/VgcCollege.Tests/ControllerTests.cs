@@ -1051,8 +1051,11 @@ public class ExamsControllerTests
     [Fact]
     public async Task ToggleRelease_ValidExam_Redirects()
     {
-        var (ctrl, db, _, _, exam) = await SetupAdminAsync(nameof(ToggleRelease_ValidExam_Redirects));
-        ctrl.ControllerContext.HttpContext.Features.Set<ITempDataDictionaryFactory>(null!);
+        var ctrl = new ExamsController(db, um.Object);
+        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("admin1", "Admin"));
+        ctrl.TempData = new Microsoft.AspNetCore.Mvc.ViewFeatures.TempDataDictionary(
+        new DefaultHttpContext(),
+        Mock.Of<Microsoft.AspNetCore.Mvc.ViewFeatures.ITempDataProvider>());
 
         // We just check it doesn't throw and redirects
         var result = await ctrl.ToggleRelease(exam.Id);
