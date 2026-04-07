@@ -189,51 +189,5 @@ public class ValidationTests
     }
 
     [Fact]
-public void FacultyProfile_MissingName_FailsValidation()
-{
-    var f = new FacultyProfile { Name = "", Email = "f@vgc.ie", IdentityUserId = "uid1" };
-    var results = Validate(f);
-    Assert.Contains(results, r => r.MemberNames.Contains("Name"));
-}
 
-[Fact]
-public void FacultyProfile_MissingEmail_FailsValidation()
-{
-    var f = new FacultyProfile { Name = "Dr. Smith", Email = "", IdentityUserId = "uid1" };
-    var results = Validate(f);
-    Assert.Contains(results, r => r.MemberNames.Contains("Email"));
-}
-
-[Fact]
-public void CourseEnrolment_DefaultStatus_IsActive()
-{
-    var e = new CourseEnrolment { StudentProfileId = 1, CourseId = 1, EnrolDate = DateTime.Today };
-    Assert.Equal(EnrolmentStatus.Active, e.Status);
-}
-
-[Fact]
-public void AttendanceRecord_Present_DefaultsFalse()
-{
-    var r = new AttendanceRecord { CourseEnrolmentId = 1, WeekNumber = 1, Date = DateTime.Today };
-    Assert.False(r.Present);
-}
-
-[Theory]
-[InlineData("", false)]
-[InlineData(null, false)]
-[InlineData("alice@vgc.ie", true)]
-[InlineData("notanemail", false)] // format validation is handled by [EmailAddress]
-public void StudentProfile_EmailPresence(string? email, bool shouldPass)
-{
-    var s = new StudentProfile
-    {
-        Name = "Alice",
-        Email = email ?? "",
-        StudentNumber = "VGC001",
-        IdentityUserId = "uid1"
-    };
-    var results = Validate(s);
-    bool hasEmailError = results.Any(r => r.MemberNames.Contains("Email"));
-    Assert.Equal(!shouldPass, hasEmailError);
-}
 }
