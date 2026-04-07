@@ -1,5 +1,4 @@
 name: ci
-
 on:
   push:
     branches: ["main"]
@@ -13,35 +12,28 @@ env:
 jobs:
   build-test-publish:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
-
       - name: Restore
         run: dotnet restore -p:WarningsAsErrors=false
-
       - name: Build
         run: dotnet build --configuration Release --no-restore -p:WarningsAsErrors=false
-
       - name: Test
         run: dotnet test tests/VgcCollege.Tests/VgcCollege.Tests.csproj --configuration Release --no-build -p:WarningsAsErrors=false
-
       - name: Publish
         run: dotnet publish --configuration Release --output ./publish
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app
           path: ./publish
 
-deploy:
+  deploy:
     needs: build-test-publish
     runs-on: ubuntu-latest
     environment:
