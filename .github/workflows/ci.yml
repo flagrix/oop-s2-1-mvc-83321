@@ -45,7 +45,7 @@ jobs:
             -reports:**/coverage.cobertura.xml \
             -targetdir:coveragereport \
             -reporttypes:Html \
-            -assemblyfilters:"+VgcCollege.Tests;-VgcCollege.Web"
+            -assemblyfilters:"+VgcCollege.Web;-VgcCollege.Web"
       - name: Upload coverage as build artifact
         uses: actions/upload-artifact@v4
         with:
