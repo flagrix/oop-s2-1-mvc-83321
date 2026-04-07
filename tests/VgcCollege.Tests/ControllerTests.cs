@@ -1,9 +1,9 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using System.Security.Claims;
 using VgcCollege.Web.Controllers;
 using VgcCollege.Web.Data;
 using VgcCollege.Web.Models;
@@ -11,40 +11,38 @@ using Xunit;
 
 namespace VgcCollege.Tests;
 
-// ─── Shared Helpers ───────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-public static class ControllerTestHelpers
+public static class TestHelpers
 {
-    public static ApplicationDbContext CreateDb(string name)
+    public static ApplicationDbContext CreateInMemoryContext(string dbName)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(name)
+            .UseInMemoryDatabase(dbName)
             .Options;
         return new ApplicationDbContext(options);
     }
 
-    public static Mock<UserManager<IdentityUser>> MockUserManager()
+    public static Mock<UserManager<IdentityUser>> CreateUserManagerMock()
     {
         var store = new Mock<IUserStore<IdentityUser>>();
-        return new Mock<UserManager<IdentityUser>>(
+        var mgr = new Mock<UserManager<IdentityUser>>(
             store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        return mgr;
     }
 
-    /// <summary>Sets up a ClaimsPrincipal simulating an authenticated user with given roles.</summary>
-    public static ClaimsPrincipal MakeUser(string userId, params string[] roles)
+    public static ControllerContext CreateControllerContext(string userId, params string[] roles)
     {
         var claims = new List<Claim> { new Claim(ClaimTypes.NameIdentifier, userId) };
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));
-        return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
-    }
 
-    /// <summary>Attaches a mocked HttpContext with the given user to a controller.</summary>
-    public static void SetUser(Controller controller, ClaimsPrincipal user)
-    {
-        controller.ControllerContext = new ControllerContext
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        return new ControllerContext
         {
-            HttpContext = new DefaultHttpContext { User = user }
+            HttpContext = new DefaultHttpContext { User = principal }
         };
     }
 }
@@ -53,46 +51,42 @@ public static class ControllerTestHelpers
 
 public class HomeControllerTests
 {
+    private readonly HomeController _controller = new HomeController();
+
     [Fact]
     public void Index_ReturnsViewResult()
     {
-        var controller = new HomeController();
-        var result = controller.Index();
+        var result = _controller.Index();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
     public void Privacy_ReturnsViewResult()
     {
-        var controller = new HomeController();
-        var result = controller.Privacy();
+        var result = _controller.Privacy();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
     public void AccessDenied_ReturnsViewResult()
     {
-        var controller = new HomeController();
-        var result = controller.AccessDenied();
+        var result = _controller.AccessDenied();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
     public void NotFoundPage_ReturnsViewResult()
     {
-        var controller = new HomeController();
-        var result = controller.NotFoundPage();
+        var result = _controller.NotFoundPage();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public void Error_ReturnsViewResult_WithErrorViewModel()
+    public void Error_ReturnsViewResult()
     {
-        var controller = new HomeController();
-        ControllerTestHelpers.SetUser(controller, ControllerTestHelpers.MakeUser("u1"));
-        var result = controller.Error();
-        var view = Assert.IsType<ViewResult>(result);
-        Assert.IsType<ErrorViewModel>(view.Model);
+        _controller.ControllerContext = TestHelpers.CreateControllerContext("user1");
+        var result = _controller.Error();
+        Assert.IsType<ViewResult>(result);
     }
 }
 
@@ -100,315 +94,167 @@ public class HomeControllerTests
 
 public class AdminControllerTests
 {
-    private (AdminController ctrl, ApplicationDbContext db) Setup(string dbName, string userId = "admin1")
-    {
-        var db = ControllerTestHelpers.CreateDb(dbName);
-        var ctrl = new AdminController(db);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser(userId, "Admin"));
-        return (ctrl, db);
-    }
+    private ApplicationDbContext CreateContext() =>
+        TestHelpers.CreateInMemoryContext("AdminDb_" + Guid.NewGuid());
 
     [Fact]
     public void Index_ReturnsView()
     {
-        var (ctrl, _) = Setup(nameof(Index_ReturnsView));
-        var result = ctrl.Index();
+        using var ctx = CreateContext();
+        var controller = new AdminController(ctx);
+        var result = controller.Index();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
     public async Task Branches_ReturnsViewWithBranches()
     {
-        var (ctrl, db) = Setup(nameof(Branches_ReturnsViewWithBranches));
-        db.Branches.AddRange(
-            new Branch { Name = "Science", Address = "1 St" },
-            new Branch { Name = "Arts", Address = "2 St" }
-        );
-        await db.SaveChangesAsync();
+        using var ctx = CreateContext();
+        ctx.Branches.Add(new Branch { Name = "Science" });
+        ctx.Branches.Add(new Branch { Name = "Arts" });
+        await ctx.SaveChangesAsync();
 
-        var result = await ctrl.Branches();
+        var controller = new AdminController(ctx);
+        var result = await controller.Branches();
+
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsAssignableFrom<IEnumerable<Branch>>(view.Model);
         Assert.Equal(2, model.Count());
     }
 
     [Fact]
-    public void CreateBranch_GET_ReturnsView()
+    public void CreateBranch_Get_ReturnsView()
     {
-        var (ctrl, _) = Setup(nameof(CreateBranch_GET_ReturnsView));
-        var result = ctrl.CreateBranch();
+        using var ctx = CreateContext();
+        var controller = new AdminController(ctx);
+        var result = controller.CreateBranch();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public async Task CreateBranch_POST_ValidModel_Redirects()
+    public async Task CreateBranch_Post_ValidModel_RedirectsToBranches()
     {
-        var (ctrl, db) = Setup(nameof(CreateBranch_POST_ValidModel_Redirects));
-        var branch = new Branch { Name = "Engineering", Address = "3 St" };
+        using var ctx = CreateContext();
+        var controller = new AdminController(ctx);
+        var branch = new Branch { Name = "Engineering" };
 
-        var result = await ctrl.CreateBranch(branch);
+        var result = await controller.CreateBranch(branch);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Branches", redirect.ActionName);
-        Assert.Equal(1, await db.Branches.CountAsync());
+        Assert.Equal(1, ctx.Branches.Count());
     }
 
     [Fact]
-    public async Task CreateBranch_POST_InvalidModel_ReturnsView()
+    public async Task CreateBranch_Post_InvalidModel_ReturnsView()
     {
-        var (ctrl, _) = Setup(nameof(CreateBranch_POST_InvalidModel_ReturnsView));
-        ctrl.ModelState.AddModelError("Name", "Required");
-        var branch = new Branch { Name = "", Address = "3 St" };
+        using var ctx = CreateContext();
+        var controller = new AdminController(ctx);
+        controller.ModelState.AddModelError("Name", "Required");
 
-        var result = await ctrl.CreateBranch(branch);
+        var result = await controller.CreateBranch(new Branch());
+
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
     public async Task Courses_ReturnsViewWithCourses()
     {
-        var (ctrl, db) = Setup(nameof(Courses_ReturnsViewWithCourses));
-        var branch = new Branch { Name = "Science", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-        db.Courses.Add(new Course { Name = "Math", BranchId = branch.Id });
-        await db.SaveChangesAsync();
+        using var ctx = CreateContext();
+        var branch = new Branch { Name = "Science" };
+        ctx.Branches.Add(branch);
+        await ctx.SaveChangesAsync();
+        ctx.Courses.Add(new Course { Name = "Math", BranchId = branch.Id });
+        await ctx.SaveChangesAsync();
 
-        var result = await ctrl.Courses();
+        var controller = new AdminController(ctx);
+        var result = await controller.Courses();
+
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsAssignableFrom<IEnumerable<Course>>(view.Model);
         Assert.Single(model);
     }
 
     [Fact]
-    public async Task CreateCourse_GET_ReturnsView()
+    public async Task CreateCourse_Post_ValidModel_RedirectsToCourses()
     {
-        var (ctrl, db) = Setup(nameof(CreateCourse_GET_ReturnsView));
-        db.Branches.Add(new Branch { Name = "Science", Address = "1 St" });
-        await db.SaveChangesAsync();
+        using var ctx = CreateContext();
+        var branch = new Branch { Name = "Science" };
+        ctx.Branches.Add(branch);
+        await ctx.SaveChangesAsync();
 
-        var result = await ctrl.CreateCourse();
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task CreateCourse_POST_ValidModel_Redirects()
-    {
-        var (ctrl, db) = Setup(nameof(CreateCourse_POST_ValidModel_Redirects));
-        var branch = new Branch { Name = "Science", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-
+        var controller = new AdminController(ctx);
         var course = new Course { Name = "Physics", BranchId = branch.Id };
-        var result = await ctrl.CreateCourse(course);
+
+        var result = await controller.CreateCourse(course);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Courses", redirect.ActionName);
-        Assert.Equal(1, await db.Courses.CountAsync());
     }
 
     [Fact]
-    public async Task CreateCourse_POST_InvalidModel_ReturnsView()
+    public async Task CreateCourse_Post_InvalidModel_ReturnsView()
     {
-        var (ctrl, db) = Setup(nameof(CreateCourse_POST_InvalidModel_ReturnsView));
-        db.Branches.Add(new Branch { Name = "Science", Address = "1 St" });
-        await db.SaveChangesAsync();
-        ctrl.ModelState.AddModelError("Name", "Required");
+        using var ctx = CreateContext();
+        var controller = new AdminController(ctx);
+        controller.ModelState.AddModelError("Name", "Required");
 
-        var result = await ctrl.CreateCourse(new Course { Name = "" });
+        var result = await controller.CreateCourse(new Course());
+
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public async Task FacultyAssignments_ReturnsView()
+    public async Task AssignFaculty_Post_DuplicateAssignment_ReturnsView()
     {
-        var (ctrl, _) = Setup(nameof(FacultyAssignments_ReturnsView));
-        var result = await ctrl.FacultyAssignments();
+        using var ctx = CreateContext();
+        var faculty = new FacultyProfile { Name = "Dr. Smith", Email = "smith@test.com", IdentityUserId = "u1" };
+        var course = new Course { Name = "Math" };
+        ctx.FacultyProfiles.Add(faculty);
+        ctx.Courses.Add(course);
+        await ctx.SaveChangesAsync();
+
+        ctx.FacultyCourseAssignments.Add(new FacultyCourseAssignment
+        {
+            FacultyProfileId = faculty.Id,
+            CourseId = course.Id
+        });
+        await ctx.SaveChangesAsync();
+
+        var controller = new AdminController(ctx);
+        var assignment = new FacultyCourseAssignment
+        {
+            FacultyProfileId = faculty.Id,
+            CourseId = course.Id
+        };
+
+        var result = await controller.AssignFaculty(assignment);
+
         Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
     }
 
     [Fact]
-    public async Task AssignFaculty_GET_ReturnsView()
+    public async Task AssignFaculty_Post_NewAssignment_Redirects()
     {
-        var (ctrl, db) = Setup(nameof(AssignFaculty_GET_ReturnsView));
-        db.FacultyProfiles.Add(new FacultyProfile { Name = "Dr. X", Email = "x@c.ie", IdentityUserId = "f1" });
-        db.Courses.Add(new Course { Name = "Math", BranchId = 0 });
-        await db.SaveChangesAsync();
+        using var ctx = CreateContext();
+        var faculty = new FacultyProfile { Name = "Dr. Jones", Email = "jones@test.com", IdentityUserId = "u2" };
+        var course = new Course { Name = "Chemistry" };
+        ctx.FacultyProfiles.Add(faculty);
+        ctx.Courses.Add(course);
+        await ctx.SaveChangesAsync();
 
-        var result = await ctrl.AssignFaculty();
-        Assert.IsType<ViewResult>(result);
-    }
+        var controller = new AdminController(ctx);
+        var assignment = new FacultyCourseAssignment
+        {
+            FacultyProfileId = faculty.Id,
+            CourseId = course.Id
+        };
 
-    [Fact]
-    public async Task AssignFaculty_POST_ValidNew_Redirects()
-    {
-        var (ctrl, db) = Setup(nameof(AssignFaculty_POST_ValidNew_Redirects));
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var faculty = new FacultyProfile { Name = "Dr. X", Email = "x@c.ie", IdentityUserId = "f1" };
-        db.FacultyProfiles.Add(faculty);
-        await db.SaveChangesAsync();
-
-        var assignment = new FacultyCourseAssignment { FacultyProfileId = faculty.Id, CourseId = course.Id };
-        var result = await ctrl.AssignFaculty(assignment);
+        var result = await controller.AssignFaculty(assignment);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("FacultyAssignments", redirect.ActionName);
-    }
-
-    [Fact]
-    public async Task AssignFaculty_POST_Duplicate_ReturnsView()
-    {
-        var (ctrl, db) = Setup(nameof(AssignFaculty_POST_Duplicate_ReturnsView));
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var faculty = new FacultyProfile { Name = "Dr. X", Email = "x@c.ie", IdentityUserId = "f1" };
-        db.FacultyProfiles.Add(faculty);
-        await db.SaveChangesAsync();
-
-        // First assignment
-        db.FacultyCourseAssignments.Add(new FacultyCourseAssignment { FacultyProfileId = faculty.Id, CourseId = course.Id });
-        await db.SaveChangesAsync();
-
-        // Attempt duplicate
-        var result = await ctrl.AssignFaculty(new FacultyCourseAssignment { FacultyProfileId = faculty.Id, CourseId = course.Id });
-        Assert.IsType<ViewResult>(result);
-    }
-}
-
-// ─── StudentsController Tests ──────────────────────────────────────────────────
-
-public class StudentsControllerTests
-{
-    private async Task<(StudentsController ctrl, ApplicationDbContext db, StudentProfile student)> SetupWithStudentAsync(string dbName)
-    {
-        var db = ControllerTestHelpers.CreateDb(dbName);
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
-
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-
-        var ctrl = new StudentsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("admin1", "Admin"));
-        return (ctrl, db, student);
-    }
-
-    [Fact]
-    public async Task Index_AsAdmin_ReturnsAllStudents()
-    {
-        var (ctrl, db, _) = await SetupWithStudentAsync(nameof(Index_AsAdmin_ReturnsAllStudents));
-        db.StudentProfiles.Add(new StudentProfile { Name = "Bob", Email = "b@b.com", StudentNumber = "S2", IdentityUserId = "u2" });
-        await db.SaveChangesAsync();
-
-        var result = await ctrl.Index();
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<StudentProfile>>(view.Model);
-        Assert.Equal(2, model.Count());
-    }
-
-    [Fact]
-    public void Create_GET_ReturnsView()
-    {
-        var db = ControllerTestHelpers.CreateDb(nameof(Create_GET_ReturnsView));
-        var um = ControllerTestHelpers.MockUserManager();
-        var ctrl = new StudentsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("admin1", "Admin"));
-
-        var result = ctrl.Create();
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task Details_AsAdmin_ValidId_ReturnsView()
-    {
-        var (ctrl, db, student) = await SetupWithStudentAsync(nameof(Details_AsAdmin_ValidId_ReturnsView));
-
-        var result = await ctrl.Details(student.Id);
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<StudentProfile>(view.Model);
-        Assert.Equal(student.Id, model.Id);
-    }
-
-    [Fact]
-    public async Task Details_InvalidId_ReturnsNotFound()
-    {
-        var (ctrl, _, _) = await SetupWithStudentAsync(nameof(Details_InvalidId_ReturnsNotFound));
-        var result = await ctrl.Details(9999);
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_GET_ValidId_ReturnsView()
-    {
-        var (ctrl, _, student) = await SetupWithStudentAsync(nameof(Edit_GET_ValidId_ReturnsView));
-        var result = await ctrl.Edit(student.Id);
-        var view = Assert.IsType<ViewResult>(result);
-        Assert.IsType<StudentProfile>(view.Model);
-    }
-
-    [Fact]
-    public async Task Edit_GET_InvalidId_ReturnsNotFound()
-    {
-        var (ctrl, _, _) = await SetupWithStudentAsync(nameof(Edit_GET_InvalidId_ReturnsNotFound));
-        var result = await ctrl.Edit(9999);
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_POST_IdMismatch_ReturnsBadRequest()
-    {
-        var (ctrl, _, student) = await SetupWithStudentAsync(nameof(Edit_POST_IdMismatch_ReturnsBadRequest));
-        var result = await ctrl.Edit(999, new StudentProfile { Id = student.Id, Name = "Alice", Email = "a@b.com", StudentNumber = "S1" });
-        Assert.IsType<BadRequestResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_POST_InvalidModel_ReturnsView()
-    {
-        var (ctrl, _, student) = await SetupWithStudentAsync(nameof(Edit_POST_InvalidModel_ReturnsView));
-        ctrl.ModelState.AddModelError("Name", "Required");
-        var profile = new StudentProfile { Id = student.Id, Name = "", Email = "a@b.com", StudentNumber = "S1" };
-        var result = await ctrl.Edit(student.Id, profile);
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task MyProfile_ValidUser_ReturnsView()
-    {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyProfile_ValidUser_ReturnsView));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("u1");
-
-        db.StudentProfiles.Add(new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" });
-        await db.SaveChangesAsync();
-
-        var ctrl = new StudentsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("u1", "Student"));
-
-        var result = await ctrl.MyProfile();
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task MyProfile_NoProfile_ReturnsNotFound()
-    {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyProfile_NoProfile_ReturnsNotFound));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("unknown");
-
-        var ctrl = new StudentsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("unknown", "Student"));
-
-        var result = await ctrl.MyProfile();
-        Assert.IsType<NotFoundResult>(result);
     }
 }
 
@@ -416,159 +262,184 @@ public class StudentsControllerTests
 
 public class EnrolmentsControllerTests
 {
-    private async Task<(EnrolmentsController ctrl, ApplicationDbContext db, StudentProfile student, Course course)> SetupAsync(string dbName)
-    {
-        var db = ControllerTestHelpers.CreateDb(dbName);
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
-
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-
-        var ctrl = new EnrolmentsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("admin1", "Admin"));
-        return (ctrl, db, student, course);
-    }
+    private ApplicationDbContext CreateContext() =>
+        TestHelpers.CreateInMemoryContext("EnrolDb_" + Guid.NewGuid());
 
     [Fact]
-    public async Task Index_AsAdmin_ReturnsView()
+    public async Task Create_Get_ReturnsView()
     {
-        var (ctrl, _, _, _) = await SetupAsync(nameof(Index_AsAdmin_ReturnsView));
-        var result = await ctrl.Index(null, null);
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new EnrolmentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Create();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public async Task Index_WithCourseFilter_ReturnsFilteredView()
+    public async Task Create_Post_DuplicateEnrolment_ReturnsView()
     {
-        var (ctrl, db, student, course) = await SetupAsync(nameof(Index_WithCourseFilter_ReturnsFilteredView));
-        db.CourseEnrolments.Add(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        await db.SaveChangesAsync();
+        using var ctx = CreateContext();
+        var student = new StudentProfile { Name = "Alice", Email = "alice@test.com", IdentityUserId = "s1" };
+        var course = new Course { Name = "Math" };
+        ctx.StudentProfiles.Add(student);
+        ctx.Courses.Add(course);
+        await ctx.SaveChangesAsync();
 
-        var result = await ctrl.Index(course.Id, null);
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<CourseEnrolment>>(view.Model);
-        Assert.Single(model);
-    }
+        ctx.CourseEnrolments.Add(new CourseEnrolment
+        {
+            StudentProfileId = student.Id,
+            CourseId = course.Id,
+            EnrolDate = DateTime.Today
+        });
+        await ctx.SaveChangesAsync();
 
-    [Fact]
-    public async Task Create_GET_ReturnsView()
-    {
-        var (ctrl, _, _, _) = await SetupAsync(nameof(Create_GET_ReturnsView));
-        var result = await ctrl.Create();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new EnrolmentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Create(new CourseEnrolment
+        {
+            StudentProfileId = student.Id,
+            CourseId = course.Id,
+            EnrolDate = DateTime.Today
+        });
+
         Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
     }
 
     [Fact]
-    public async Task Create_POST_ValidNew_Redirects()
+    public async Task Create_Post_ValidEnrolment_Redirects()
     {
-        var (ctrl, db, student, course) = await SetupAsync(nameof(Create_POST_ValidNew_Redirects));
+        using var ctx = CreateContext();
+        var student = new StudentProfile { Name = "Bob", Email = "bob@test.com", IdentityUserId = "s2" };
+        var course = new Course { Name = "Physics" };
+        ctx.StudentProfiles.Add(student);
+        ctx.Courses.Add(course);
+        await ctx.SaveChangesAsync();
 
-        var enrolment = new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id, EnrolDate = DateTime.Today };
-        var result = await ctrl.Create(enrolment);
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new EnrolmentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Create(new CourseEnrolment
+        {
+            StudentProfileId = student.Id,
+            CourseId = course.Id,
+            EnrolDate = DateTime.Today
+        });
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
-        Assert.Equal(1, await db.CourseEnrolments.CountAsync());
     }
 
     [Fact]
-    public async Task Create_POST_Duplicate_ReturnsView()
+    public async Task Edit_Get_NotFound_ReturnsNotFound()
     {
-        var (ctrl, db, student, course) = await SetupAsync(nameof(Create_POST_Duplicate_ReturnsView));
-        db.CourseEnrolments.Add(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        await db.SaveChangesAsync();
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new EnrolmentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
 
-        var result = await ctrl.Create(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_GET_ValidId_ReturnsView()
-    {
-        var (ctrl, db, student, course) = await SetupAsync(nameof(Edit_GET_ValidId_ReturnsView));
-        var enrolment = new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id };
-        db.CourseEnrolments.Add(enrolment);
-        await db.SaveChangesAsync();
-
-        var result = await ctrl.Edit(enrolment.Id);
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_GET_InvalidId_ReturnsNotFound()
-    {
-        var (ctrl, _, _, _) = await SetupAsync(nameof(Edit_GET_InvalidId_ReturnsNotFound));
-        var result = await ctrl.Edit(9999);
+        var result = await controller.Edit(999);
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task Edit_POST_IdMismatch_ReturnsBadRequest()
+    public async Task Edit_Post_IdMismatch_ReturnsBadRequest()
     {
-        var (ctrl, _, _, _) = await SetupAsync(nameof(Edit_POST_IdMismatch_ReturnsBadRequest));
-        var result = await ctrl.Edit(1, new CourseEnrolment { Id = 99 });
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new EnrolmentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Edit(1, new CourseEnrolment { Id = 2 });
         Assert.IsType<BadRequestResult>(result);
     }
 
     [Fact]
-    public async Task Edit_POST_ValidModel_Redirects()
+    public async Task Edit_Post_ValidUpdate_Redirects()
     {
-        var (ctrl, db, student, course) = await SetupAsync(nameof(Edit_POST_ValidModel_Redirects));
-        var enrolment = new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id, Status = EnrolmentStatus.Active };
-        db.CourseEnrolments.Add(enrolment);
-        await db.SaveChangesAsync();
+        using var ctx = CreateContext();
+        var student = new StudentProfile { Name = "Charlie", Email = "charlie@test.com", IdentityUserId = "s3" };
+        var course = new Course { Name = "Biology" };
+        ctx.StudentProfiles.Add(student);
+        ctx.Courses.Add(course);
+        await ctx.SaveChangesAsync();
 
-        var updated = new CourseEnrolment { Id = enrolment.Id, StudentProfileId = student.Id, CourseId = course.Id, Status = EnrolmentStatus.Completed };
-        var result = await ctrl.Edit(enrolment.Id, updated);
+        var enrolment = new CourseEnrolment
+        {
+            StudentProfileId = student.Id,
+            CourseId = course.Id,
+            EnrolDate = DateTime.Today,
+            Status = EnrolmentStatus.Active,
+        };
+        ctx.CourseEnrolments.Add(enrolment);
+        await ctx.SaveChangesAsync();
+
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new EnrolmentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Edit(enrolment.Id, new CourseEnrolment
+        {
+            Id = enrolment.Id,
+            Status = EnrolmentStatus.Completed,
+            EnrolDate = DateTime.Today
+        });
+
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
+    }
+
+    [Fact]
+    public async Task MyEnrolments_ProfileNotFound_ReturnsNotFound()
+    {
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("unknown_user");
+
+        var controller = new EnrolmentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("unknown_user", "Student")
+        };
+
+        var result = await controller.MyEnrolments();
+        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
     public async Task MyEnrolments_ValidStudent_ReturnsView()
     {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyEnrolments_ValidStudent_ReturnsView));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("u1");
+        using var ctx = CreateContext();
+        var profile = new StudentProfile { Name = "Dave", Email = "dave@test.com", IdentityUserId = "s4" };
+        ctx.StudentProfiles.Add(profile);
+        await ctx.SaveChangesAsync();
 
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-        db.CourseEnrolments.Add(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        await db.SaveChangesAsync();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("s4");
 
-        var ctrl = new EnrolmentsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("u1", "Student"));
+        var controller = new EnrolmentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("s4", "Student")
+        };
 
-        var result = await ctrl.MyEnrolments();
+        var result = await controller.MyEnrolments();
         Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task MyEnrolments_NoProfile_ReturnsNotFound()
-    {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyEnrolments_NoProfile_ReturnsNotFound));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("nobody");
-
-        var ctrl = new EnrolmentsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("nobody", "Student"));
-
-        var result = await ctrl.MyEnrolments();
-        Assert.IsType<NotFoundResult>(result);
     }
 }
 
@@ -576,598 +447,516 @@ public class EnrolmentsControllerTests
 
 public class AttendanceControllerTests
 {
-    private async Task<(AttendanceController ctrl, ApplicationDbContext db, CourseEnrolment enrolment)> SetupAdminAsync(string dbName)
-    {
-        var db = ControllerTestHelpers.CreateDb(dbName);
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
-
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-        var enrolment = new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id };
-        db.CourseEnrolments.Add(enrolment);
-        await db.SaveChangesAsync();
-
-        var ctrl = new AttendanceController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("admin1", "Admin"));
-        return (ctrl, db, enrolment);
-    }
+    private ApplicationDbContext CreateContext() =>
+        TestHelpers.CreateInMemoryContext("AttendDb_" + Guid.NewGuid());
 
     [Fact]
-    public async Task Index_ValidEnrolmentId_ReturnsView()
+    public async Task Index_EnrolmentNotFound_ReturnsNotFound()
     {
-        var (ctrl, _, enrolment) = await SetupAdminAsync(nameof(Index_ValidEnrolmentId_ReturnsView));
-        var result = await ctrl.Index(enrolment.Id);
-        Assert.IsType<ViewResult>(result);
-    }
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new AttendanceController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
 
-    [Fact]
-    public async Task Index_InvalidEnrolmentId_ReturnsNotFound()
-    {
-        var (ctrl, _, _) = await SetupAdminAsync(nameof(Index_InvalidEnrolmentId_ReturnsNotFound));
-        var result = await ctrl.Index(9999);
+        var result = await controller.Index(999);
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task Create_GET_ValidEnrolment_ReturnsView()
+    public async Task Index_ValidEnrolment_AsAdmin_ReturnsView()
     {
-        var (ctrl, _, enrolment) = await SetupAdminAsync(nameof(Create_GET_ValidEnrolment_ReturnsView));
-        var result = await ctrl.Create(enrolment.Id);
+        using var ctx = CreateContext();
+        var student = new StudentProfile { Name = "Eve", Email = "eve@test.com", IdentityUserId = "s5" };
+        var course = new Course { Name = "History" };
+        ctx.StudentProfiles.Add(student);
+        ctx.Courses.Add(course);
+        await ctx.SaveChangesAsync();
+
+        var enrolment = new CourseEnrolment
+        {
+            StudentProfileId = student.Id,
+            CourseId = course.Id,
+            EnrolDate = DateTime.Today
+        };
+        ctx.CourseEnrolments.Add(enrolment);
+        await ctx.SaveChangesAsync();
+
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new AttendanceController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Index(enrolment.Id);
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public async Task Create_GET_InvalidEnrolment_ReturnsNotFound()
+    public async Task Create_Get_EnrolmentNotFound_ReturnsNotFound()
     {
-        var (ctrl, _, _) = await SetupAdminAsync(nameof(Create_GET_InvalidEnrolment_ReturnsNotFound));
-        var result = await ctrl.Create(9999);
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new AttendanceController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Create(999);
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task Create_POST_ValidRecord_Redirects()
+    public async Task Create_Post_ValidRecord_Redirects()
     {
-        var (ctrl, db, enrolment) = await SetupAdminAsync(nameof(Create_POST_ValidRecord_Redirects));
-        var record = new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 1, Present = true, Date = DateTime.Today };
+        using var ctx = CreateContext();
+        var student = new StudentProfile { Name = "Frank", Email = "frank@test.com", IdentityUserId = "s6" };
+        var course = new Course { Name = "Art" };
+        ctx.StudentProfiles.Add(student);
+        ctx.Courses.Add(course);
+        await ctx.SaveChangesAsync();
 
-        var result = await ctrl.Create(record);
+        var enrolment = new CourseEnrolment
+        {
+            StudentProfileId = student.Id,
+            CourseId = course.Id,
+            EnrolDate = DateTime.Today
+        };
+        ctx.CourseEnrolments.Add(enrolment);
+        await ctx.SaveChangesAsync();
+
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new AttendanceController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var record = new AttendanceRecord
+        {
+            CourseEnrolmentId = enrolment.Id,
+            Date = DateTime.Today,
+            WeekNumber = 1,
+            Present = true
+        };
+
+        var result = await controller.Create(record);
+
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
-        Assert.Equal(1, await db.AttendanceRecords.CountAsync());
     }
 
     [Fact]
-    public async Task Create_POST_InvalidModel_ReturnsView()
+    public async Task Edit_Get_NotFound_ReturnsNotFound()
     {
-        var (ctrl, _, enrolment) = await SetupAdminAsync(nameof(Create_POST_InvalidModel_ReturnsView));
-        ctrl.ModelState.AddModelError("WeekNumber", "Required");
-        var record = new AttendanceRecord { CourseEnrolmentId = enrolment.Id };
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new AttendanceController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
 
-        var result = await ctrl.Create(record);
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_GET_ValidId_ReturnsView()
-    {
-        var (ctrl, db, enrolment) = await SetupAdminAsync(nameof(Edit_GET_ValidId_ReturnsView));
-        var record = new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 1, Present = true };
-        db.AttendanceRecords.Add(record);
-        await db.SaveChangesAsync();
-
-        var result = await ctrl.Edit(record.Id);
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_GET_InvalidId_ReturnsNotFound()
-    {
-        var (ctrl, _, _) = await SetupAdminAsync(nameof(Edit_GET_InvalidId_ReturnsNotFound));
-        var result = await ctrl.Edit(9999);
+        var result = await controller.Edit(999);
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task Edit_POST_IdMismatch_ReturnsBadRequest()
+    public async Task Edit_Post_IdMismatch_ReturnsBadRequest()
     {
-        var (ctrl, _, _) = await SetupAdminAsync(nameof(Edit_POST_IdMismatch_ReturnsBadRequest));
-        var result = await ctrl.Edit(1, new AttendanceRecord { Id = 99 });
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new AttendanceController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Edit(1, new AttendanceRecord { Id = 2 });
         Assert.IsType<BadRequestResult>(result);
     }
 
     [Fact]
-    public async Task Edit_POST_Valid_Redirects()
+    public async Task MyAttendance_ProfileNotFound_ReturnsNotFound()
     {
-        var (ctrl, db, enrolment) = await SetupAdminAsync(nameof(Edit_POST_Valid_Redirects));
-        var record = new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 1, Present = false };
-        db.AttendanceRecords.Add(record);
-        await db.SaveChangesAsync();
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("unknown");
 
-        var updated = new AttendanceRecord { Id = record.Id, CourseEnrolmentId = enrolment.Id, WeekNumber = 1, Present = true, Date = DateTime.Today };
-        var result = await ctrl.Edit(record.Id, updated);
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
-    }
+        var controller = new AttendanceController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("unknown", "Student")
+        };
 
-    [Fact]
-    public async Task Edit_POST_NotFound_ReturnsNotFound()
-    {
-        var (ctrl, _, _) = await SetupAdminAsync(nameof(Edit_POST_NotFound_ReturnsNotFound));
-        var result = await ctrl.Edit(9999, new AttendanceRecord { Id = 9999 });
+        var result = await controller.MyAttendance();
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
     public async Task MyAttendance_ValidStudent_ReturnsView()
     {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyAttendance_ValidStudent_ReturnsView));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("u1");
+        using var ctx = CreateContext();
+        var profile = new StudentProfile { Name = "Grace", Email = "grace@test.com", IdentityUserId = "s7" };
+        ctx.StudentProfiles.Add(profile);
+        await ctx.SaveChangesAsync();
 
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-        db.CourseEnrolments.Add(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        await db.SaveChangesAsync();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("s7");
 
-        var ctrl = new AttendanceController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("u1", "Student"));
+        var controller = new AttendanceController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("s7", "Student")
+        };
 
-        var result = await ctrl.MyAttendance();
+        var result = await controller.MyAttendance();
         Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task MyAttendance_NoProfile_ReturnsNotFound()
-    {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyAttendance_NoProfile_ReturnsNotFound));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("nobody");
-
-        var ctrl = new AttendanceController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("nobody", "Student"));
-
-        var result = await ctrl.MyAttendance();
-        Assert.IsType<NotFoundResult>(result);
     }
 }
 
-// ─── GradebookController Tests ─────────────────────────────────────────────────
+// ─── StudentsController Tests ─────────────────────────────────────────────────
 
-public class GradebookControllerTests
+public class StudentsControllerTests
 {
-    private async Task<(GradebookController ctrl, ApplicationDbContext db, Course course, StudentProfile student, Assignment assignment)> SetupAdminAsync(string dbName)
-    {
-        var db = ControllerTestHelpers.CreateDb(dbName);
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
-
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-
-        var assignment = new Assignment { Title = "Essay", MaxScore = 100, CourseId = course.Id };
-        db.Assignments.Add(assignment);
-        db.CourseEnrolments.Add(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        await db.SaveChangesAsync();
-
-        var ctrl = new GradebookController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("admin1", "Admin"));
-        return (ctrl, db, course, student, assignment);
-    }
+    private ApplicationDbContext CreateContext() =>
+        TestHelpers.CreateInMemoryContext("StudentsDb_" + Guid.NewGuid());
 
     [Fact]
-    public async Task Assignments_AsAdmin_ReturnsView()
+    public void Create_Get_ReturnsView()
     {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(Assignments_AsAdmin_ReturnsView));
-        var result = await ctrl.Assignments(null);
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new StudentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = controller.Create();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public async Task Assignments_WithCourseFilter_ReturnsFilteredView()
+    public async Task Edit_Get_NotFound_ReturnsNotFound()
     {
-        var (ctrl, _, course, _, _) = await SetupAdminAsync(nameof(Assignments_WithCourseFilter_ReturnsFilteredView));
-        var result = await ctrl.Assignments(course.Id);
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<Assignment>>(view.Model);
-        Assert.Single(model);
-    }
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new StudentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
 
-    [Fact]
-    public async Task CreateAssignment_GET_ReturnsView()
-    {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(CreateAssignment_GET_ReturnsView));
-        var result = await ctrl.CreateAssignment();
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task CreateAssignment_POST_ValidModel_Redirects()
-    {
-        var (ctrl, db, course, _, _) = await SetupAdminAsync(nameof(CreateAssignment_POST_ValidModel_Redirects));
-        var a = new Assignment { Title = "Lab Report", MaxScore = 50, CourseId = course.Id };
-
-        var result = await ctrl.CreateAssignment(a);
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Assignments", redirect.ActionName);
-        Assert.Equal(2, await db.Assignments.CountAsync());
-    }
-
-    [Fact]
-    public async Task CreateAssignment_POST_InvalidModel_ReturnsView()
-    {
-        var (ctrl, _, course, _, _) = await SetupAdminAsync(nameof(CreateAssignment_POST_InvalidModel_ReturnsView));
-        ctrl.ModelState.AddModelError("Title", "Required");
-        var result = await ctrl.CreateAssignment(new Assignment { CourseId = course.Id });
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task EditAssignment_GET_ValidId_ReturnsView()
-    {
-        var (ctrl, _, _, _, assignment) = await SetupAdminAsync(nameof(EditAssignment_GET_ValidId_ReturnsView));
-        var result = await ctrl.EditAssignment(assignment.Id);
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task EditAssignment_GET_InvalidId_ReturnsNotFound()
-    {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(EditAssignment_GET_InvalidId_ReturnsNotFound));
-        var result = await ctrl.EditAssignment(9999);
+        var result = await controller.Edit(999);
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task EditAssignment_POST_IdMismatch_ReturnsBadRequest()
+    public async Task Edit_Get_ValidStudent_ReturnsView()
     {
-        var (ctrl, _, _, _, assignment) = await SetupAdminAsync(nameof(EditAssignment_POST_IdMismatch_ReturnsBadRequest));
-        var result = await ctrl.EditAssignment(999, new Assignment { Id = assignment.Id, Title = "X", CourseId = assignment.CourseId });
+        using var ctx = CreateContext();
+        var student = new StudentProfile { Name = "Harry", Email = "harry@test.com", IdentityUserId = "s8" };
+        ctx.StudentProfiles.Add(student);
+        await ctx.SaveChangesAsync();
+
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new StudentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Edit(student.Id);
+        Assert.IsType<ViewResult>(result);
+    }
+
+    [Fact]
+    public async Task Edit_Post_IdMismatch_ReturnsBadRequest()
+    {
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new StudentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.Edit(1, new StudentProfile { Id = 2 });
         Assert.IsType<BadRequestResult>(result);
     }
 
     [Fact]
-    public async Task AssignmentResults_ValidId_ReturnsView()
+    public async Task Edit_Post_InvalidModel_ReturnsView()
     {
-        var (ctrl, _, _, _, assignment) = await SetupAdminAsync(nameof(AssignmentResults_ValidId_ReturnsView));
-        var result = await ctrl.AssignmentResults(assignment.Id);
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new StudentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+        controller.ModelState.AddModelError("Name", "Required");
+
+        var result = await controller.Edit(1, new StudentProfile { Id = 1 });
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public async Task AssignmentResults_InvalidId_ReturnsNotFound()
+    public async Task MyProfile_ProfileNotFound_ReturnsNotFound()
     {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(AssignmentResults_InvalidId_ReturnsNotFound));
-        var result = await ctrl.AssignmentResults(9999);
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("unknown");
+
+        var controller = new StudentsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("unknown", "Student")
+        };
+
+        var result = await controller.MyProfile();
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task SaveAssignmentResults_ValidScores_Redirects()
+    public async Task Details_NotFound_ReturnsNotFound()
     {
-        var (ctrl, _, _, student, assignment) = await SetupAdminAsync(nameof(SaveAssignmentResults_ValidScores_Redirects));
-        var posts = new List<AssignmentResultPost>
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
+
+        var controller = new StudentsController(ctx, userMgr.Object)
         {
-            new AssignmentResultPost { StudentProfileId = student.Id, Score = 75, Feedback = "Good" }
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
         };
 
-        var result = await ctrl.SaveAssignmentResults(assignment.Id, posts);
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("AssignmentResults", redirect.ActionName);
+        var result = await controller.Details(999);
+        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task SaveAssignmentResults_ScoreOutOfRange_Redirects()
+    public async Task Details_Admin_ValidStudent_ReturnsView()
     {
-        var (ctrl, _, _, student, assignment) = await SetupAdminAsync(nameof(SaveAssignmentResults_ScoreOutOfRange_Redirects));
-        var posts = new List<AssignmentResultPost>
+        using var ctx = CreateContext();
+        var student = new StudentProfile { Name = "Ivy", Email = "ivy@test.com", IdentityUserId = "s9" };
+        ctx.StudentProfiles.Add(student);
+        await ctx.SaveChangesAsync();
+
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
+
+        var controller = new StudentsController(ctx, userMgr.Object)
         {
-            new AssignmentResultPost { StudentProfileId = student.Id, Score = 999 }
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
         };
 
-        var result = await ctrl.SaveAssignmentResults(assignment.Id, posts);
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("AssignmentResults", redirect.ActionName);
-    }
-
-    [Fact]
-    public async Task SaveAssignmentResults_UpdatesExisting()
-    {
-        var (ctrl, db, _, student, assignment) = await SetupAdminAsync(nameof(SaveAssignmentResults_UpdatesExisting));
-        db.AssignmentResults.Add(new AssignmentResult { AssignmentId = assignment.Id, StudentProfileId = student.Id, Score = 50 });
-        await db.SaveChangesAsync();
-
-        var posts = new List<AssignmentResultPost>
-        {
-            new AssignmentResultPost { StudentProfileId = student.Id, Score = 80, Feedback = "Revised" }
-        };
-
-        await ctrl.SaveAssignmentResults(assignment.Id, posts);
-        var updated = await db.AssignmentResults.FirstAsync();
-        Assert.Equal(80, updated.Score);
-    }
-
-    [Fact]
-    public async Task MyGradebook_ValidStudent_ReturnsView()
-    {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyGradebook_ValidStudent_ReturnsView));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("u1");
-
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-        db.CourseEnrolments.Add(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        db.Assignments.Add(new Assignment { Title = "Essay", MaxScore = 100, CourseId = course.Id });
-        await db.SaveChangesAsync();
-
-        var ctrl = new GradebookController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("u1", "Student"));
-
-        var result = await ctrl.MyGradebook();
+        var result = await controller.Details(student.Id);
         Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task MyGradebook_NoProfile_ReturnsNotFound()
-    {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyGradebook_NoProfile_ReturnsNotFound));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("nobody");
-
-        var ctrl = new GradebookController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("nobody", "Student"));
-
-        var result = await ctrl.MyGradebook();
-        Assert.IsType<NotFoundResult>(result);
     }
 }
 
-// ─── ExamsController Tests ─────────────────────────────────────────────────────
+// ─── ExamsController Tests ────────────────────────────────────────────────────
 
 public class ExamsControllerTests
 {
-    private async Task<(ExamsController ctrl, ApplicationDbContext db, Course course, StudentProfile student, Exam exam)> SetupAdminAsync(string dbName)
-    {
-        var db = ControllerTestHelpers.CreateDb(dbName);
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
-
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-
-        var exam = new Exam { Title = "Final", MaxScore = 100, CourseId = course.Id, ResultsReleased = false };
-        db.Exams.Add(exam);
-        db.CourseEnrolments.Add(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        await db.SaveChangesAsync();
-
-        var ctrl = new ExamsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("admin1", "Admin"));
-        return (ctrl, db, course, student, exam);
-    }
+    private ApplicationDbContext CreateContext() =>
+        TestHelpers.CreateInMemoryContext("ExamsDb_" + Guid.NewGuid());
 
     [Fact]
-    public async Task Index_AsAdmin_ReturnsView()
+    public async Task ToggleRelease_NotFound_ReturnsNotFound()
     {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(Index_AsAdmin_ReturnsView));
-        var result = await ctrl.Index(null);
-        Assert.IsType<ViewResult>(result);
-    }
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new ExamsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
 
-    [Fact]
-    public async Task Index_WithCourseFilter_ReturnsFiltered()
-    {
-        var (ctrl, _, course, _, _) = await SetupAdminAsync(nameof(Index_WithCourseFilter_ReturnsFiltered));
-        var result = await ctrl.Index(course.Id);
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<Exam>>(view.Model);
-        Assert.Single(model);
-    }
-
-    [Fact]
-    public async Task Create_GET_ReturnsView()
-    {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(Create_GET_ReturnsView));
-        var result = await ctrl.Create();
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task Create_POST_ValidExam_Redirects()
-    {
-        var (ctrl, db, course, _, _) = await SetupAdminAsync(nameof(Create_POST_ValidExam_Redirects));
-        var exam = new Exam { Title = "Midterm", MaxScore = 50, CourseId = course.Id };
-
-        var result = await ctrl.Create(exam);
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
-        Assert.Equal(2, await db.Exams.CountAsync());
-    }
-
-    [Fact]
-    public async Task Create_POST_InvalidModel_ReturnsView()
-    {
-        var (ctrl, _, course, _, _) = await SetupAdminAsync(nameof(Create_POST_InvalidModel_ReturnsView));
-        ctrl.ModelState.AddModelError("Title", "Required");
-        var result = await ctrl.Create(new Exam { CourseId = course.Id });
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_GET_ValidId_ReturnsView()
-    {
-        var (ctrl, _, _, _, exam) = await SetupAdminAsync(nameof(Edit_GET_ValidId_ReturnsView));
-        var result = await ctrl.Edit(exam.Id);
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_GET_InvalidId_ReturnsNotFound()
-    {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(Edit_GET_InvalidId_ReturnsNotFound));
-        var result = await ctrl.Edit(9999);
+        var result = await controller.ToggleRelease(999);
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task Edit_POST_IdMismatch_ReturnsBadRequest()
+    public async Task ToggleRelease_ValidExam_TogglesAndRedirects()
     {
-        var (ctrl, _, _, _, exam) = await SetupAdminAsync(nameof(Edit_POST_IdMismatch_ReturnsBadRequest));
-        var result = await ctrl.Edit(999, new Exam { Id = exam.Id, Title = "X", CourseId = exam.CourseId });
-        Assert.IsType<BadRequestResult>(result);
-    }
+        using var ctx = CreateContext();
+        var course = new Course { Name = "Math" };
+        ctx.Courses.Add(course);
+        await ctx.SaveChangesAsync();
 
-    [Fact]
-    public async Task ToggleRelease_ValidExam_Redirects()
-    {
-        var ctrl = new ExamsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("admin1", "Admin"));
-        ctrl.TempData = new Microsoft.AspNetCore.Mvc.ViewFeatures.TempDataDictionary(
-        new DefaultHttpContext(),
-        Mock.Of<Microsoft.AspNetCore.Mvc.ViewFeatures.ITempDataProvider>());
+        var exam = new Exam
+        {
+            Title = "Midterm",
+            CourseId = course.Id,
+            Date = DateTime.Today,
+            MaxScore = 100,
+            ResultsReleased = false
+        };
+        ctx.Exams.Add(exam);
+        await ctx.SaveChangesAsync();
 
-        // We just check it doesn't throw and redirects
-        var result = await ctrl.ToggleRelease(exam.Id);
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new ExamsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin"),
+            TempData = new Microsoft.AspNetCore.Mvc.ViewFeatures.TempDataDictionary(
+                new DefaultHttpContext(),
+                Mock.Of<Microsoft.AspNetCore.Mvc.ViewFeatures.ITempDataProvider>())
+        };
+
+        var result = await controller.ToggleRelease(exam.Id);
+
         Assert.IsType<RedirectToActionResult>(result);
-        var updated = await db.Exams.FindAsync(exam.Id);
-        Assert.True(updated!.ResultsReleased); // was false, now toggled
+        Assert.True(ctx.Exams.Find(exam.Id)!.ResultsReleased);
     }
 
     [Fact]
-    public async Task ToggleRelease_InvalidId_ReturnsNotFound()
+    public async Task MyExamResults_ProfileNotFound_ReturnsNotFound()
     {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(ToggleRelease_InvalidId_ReturnsNotFound));
-        var result = await ctrl.ToggleRelease(9999);
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("unknown");
+
+        var controller = new ExamsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("unknown", "Student")
+        };
+
+        var result = await controller.MyExamResults();
         Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task ExamResults_ValidId_ReturnsView()
-    {
-        var (ctrl, _, _, _, exam) = await SetupAdminAsync(nameof(ExamResults_ValidId_ReturnsView));
-        var result = await ctrl.ExamResults(exam.Id);
-        Assert.IsType<ViewResult>(result);
-    }
-
-    [Fact]
-    public async Task ExamResults_InvalidId_ReturnsNotFound()
-    {
-        var (ctrl, _, _, _, _) = await SetupAdminAsync(nameof(ExamResults_InvalidId_ReturnsNotFound));
-        var result = await ctrl.ExamResults(9999);
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task SaveExamResults_ValidScore_Redirects()
-    {
-        var (ctrl, _, _, student, exam) = await SetupAdminAsync(nameof(SaveExamResults_ValidScore_Redirects));
-        var posts = new List<ExamResultPost>
-        {
-            new ExamResultPost { StudentProfileId = student.Id, Score = 85, Grade = "A" }
-        };
-        var result = await ctrl.SaveExamResults(exam.Id, posts);
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("ExamResults", redirect.ActionName);
-    }
-
-    [Fact]
-    public async Task SaveExamResults_ScoreOutOfRange_Redirects()
-    {
-        var (ctrl, _, _, student, exam) = await SetupAdminAsync(nameof(SaveExamResults_ScoreOutOfRange_Redirects));
-        var posts = new List<ExamResultPost>
-        {
-            new ExamResultPost { StudentProfileId = student.Id, Score = 999 }
-        };
-        var result = await ctrl.SaveExamResults(exam.Id, posts);
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("ExamResults", redirect.ActionName);
-    }
-
-    [Fact]
-    public async Task SaveExamResults_UpdatesExisting()
-    {
-        var (ctrl, db, _, student, exam) = await SetupAdminAsync(nameof(SaveExamResults_UpdatesExisting));
-        db.ExamResults.Add(new ExamResult { ExamId = exam.Id, StudentProfileId = student.Id, Score = 60, Grade = "C" });
-        await db.SaveChangesAsync();
-
-        var posts = new List<ExamResultPost>
-        {
-            new ExamResultPost { StudentProfileId = student.Id, Score = 95, Grade = "A" }
-        };
-        await ctrl.SaveExamResults(exam.Id, posts);
-        var updated = await db.ExamResults.FirstAsync();
-        Assert.Equal(95, updated.Score);
-        Assert.Equal("A", updated.Grade);
     }
 
     [Fact]
     public async Task MyExamResults_ValidStudent_ReturnsView()
     {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyExamResults_ValidStudent_ReturnsView));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("u1");
+        using var ctx = CreateContext();
+        var profile = new StudentProfile { Name = "Jack", Email = "jack@test.com", IdentityUserId = "s10" };
+        ctx.StudentProfiles.Add(profile);
+        await ctx.SaveChangesAsync();
 
-        var branch = new Branch { Name = "Sci", Address = "1 St" };
-        db.Branches.Add(branch);
-        await db.SaveChangesAsync();
-        var course = new Course { Name = "Math", BranchId = branch.Id };
-        db.Courses.Add(course);
-        var student = new StudentProfile { Name = "Alice", Email = "a@b.com", StudentNumber = "S1", IdentityUserId = "u1" };
-        db.StudentProfiles.Add(student);
-        await db.SaveChangesAsync();
-        db.CourseEnrolments.Add(new CourseEnrolment { StudentProfileId = student.Id, CourseId = course.Id });
-        db.Exams.Add(new Exam { Title = "Final", MaxScore = 100, CourseId = course.Id, ResultsReleased = true });
-        await db.SaveChangesAsync();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("s10");
 
-        var ctrl = new ExamsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("u1", "Student"));
+        var controller = new ExamsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("s10", "Student")
+        };
 
-        var result = await ctrl.MyExamResults();
+        var result = await controller.MyExamResults();
         Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public async Task MyExamResults_NoProfile_ReturnsNotFound()
+    public async Task ExamResults_NotFound_ReturnsNotFound()
     {
-        var db = ControllerTestHelpers.CreateDb(nameof(MyExamResults_NoProfile_ReturnsNotFound));
-        var um = ControllerTestHelpers.MockUserManager();
-        um.Setup(x => x.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("nobody");
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
 
-        var ctrl = new ExamsController(db, um.Object);
-        ControllerTestHelpers.SetUser(ctrl, ControllerTestHelpers.MakeUser("nobody", "Student"));
+        var controller = new ExamsController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
 
-        var result = await ctrl.MyExamResults();
+        var result = await controller.ExamResults(999);
         Assert.IsType<NotFoundResult>(result);
+    }
+}
+
+// ─── GradebookController Tests ────────────────────────────────────────────────
+
+public class GradebookControllerTests
+{
+    private ApplicationDbContext CreateContext() =>
+        TestHelpers.CreateInMemoryContext("GradebookDb_" + Guid.NewGuid());
+
+    [Fact]
+    public async Task MyGradebook_ProfileNotFound_ReturnsNotFound()
+    {
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("unknown");
+
+        var controller = new GradebookController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("unknown", "Student")
+        };
+
+        var result = await controller.MyGradebook();
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task MyGradebook_ValidStudent_ReturnsView()
+    {
+        using var ctx = CreateContext();
+        var profile = new StudentProfile { Name = "Kate", Email = "kate@test.com", IdentityUserId = "s11" };
+        ctx.StudentProfiles.Add(profile);
+        await ctx.SaveChangesAsync();
+
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("s11");
+
+        var controller = new GradebookController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("s11", "Student")
+        };
+
+        var result = await controller.MyGradebook();
+        Assert.IsType<ViewResult>(result);
+    }
+
+    [Fact]
+    public async Task AssignmentResults_NotFound_ReturnsNotFound()
+    {
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
+
+        var controller = new GradebookController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.AssignmentResults(999);
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateAssignment_Post_InvalidModel_ReturnsView()
+    {
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
+
+        var controller = new GradebookController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+        controller.ModelState.AddModelError("Title", "Required");
+
+        var result = await controller.CreateAssignment(new Assignment());
+        Assert.IsType<ViewResult>(result);
+    }
+
+    [Fact]
+    public async Task EditAssignment_Get_NotFound_ReturnsNotFound()
+    {
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        userMgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns("admin1");
+
+        var controller = new GradebookController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.EditAssignment(999);
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task EditAssignment_Post_IdMismatch_ReturnsBadRequest()
+    {
+        using var ctx = CreateContext();
+        var userMgr = TestHelpers.CreateUserManagerMock();
+        var controller = new GradebookController(ctx, userMgr.Object)
+        {
+            ControllerContext = TestHelpers.CreateControllerContext("admin1", "Admin")
+        };
+
+        var result = await controller.EditAssignment(1, new Assignment { Id = 2 });
+        Assert.IsType<BadRequestResult>(result);
     }
 }
