@@ -1,9 +1,13 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Moq;
+using System.Security.Claims;
 using VgcCollege.Web.Controllers;
 using VgcCollege.Web.Data;
-using VgcCollege.Web.Domain;
+using VgcCollege.Web.Models;
+using Xunit;
 
 namespace VgcCollege.Tests;
 
