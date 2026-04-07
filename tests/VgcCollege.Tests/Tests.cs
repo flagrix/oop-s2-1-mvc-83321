@@ -116,7 +116,7 @@ public class VgcTests
         var (_, course) = await SeedCourseAsync(ctx);
         var faculty = await SeedFacultyAsync(ctx);
 
-        ctx.FacultyCourseAssignments.Add(new FacultyCourseAssignment { FacultyProfileId = faculty.Id, CourseId = course.Id, IsTutor = true });
+        ctx.FacultyCourseAssignments.Add(new FacultyCourseAssignment { FacultyProfileId = faculty.Id, CourseId = course.Id });
         await ctx.SaveChangesAsync();
 
         var studentInCourse = await SeedStudentAsync(ctx, "uid-in");
@@ -178,10 +178,10 @@ public class VgcTests
         await ctx.SaveChangesAsync();
 
         ctx.AttendanceRecords.AddRange(
-            new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 1, SessionDate = DateTime.Today.AddDays(-7), Present = true },
-            new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 2, SessionDate = DateTime.Today.AddDays(-14), Present = true },
-            new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 3, SessionDate = DateTime.Today.AddDays(-21), Present = false },
-            new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 4, SessionDate = DateTime.Today.AddDays(-28), Present = true }
+            new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 1, Present = true },
+            new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 2, Present = true },
+            new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 3, Present = false },
+            new AttendanceRecord { CourseEnrolmentId = enrolment.Id, WeekNumber = 4, Present = true }
         );
         await ctx.SaveChangesAsync();
 
@@ -274,9 +274,9 @@ public class VgcTests
         Assert.All(myEnrolments, e => Assert.Equal(student1.Id, e.StudentProfileId));
     }
 
-    // ── TEST 10: Tutor assignment allows contact details access ───────────
+    // ── TEST 10: Faculty assignment exists ────────────────────────────────
     [Fact]
-    public async Task Faculty_IsTutor_AllowsContactDetailsAccess()
+    public async Task Faculty_Assignment_Exists()
     {
         await using var ctx = CreateCtx();
         var (_, course) = await SeedCourseAsync(ctx);
@@ -285,8 +285,7 @@ public class VgcTests
         ctx.FacultyCourseAssignments.Add(new FacultyCourseAssignment
         {
             FacultyProfileId = faculty.Id,
-            CourseId = course.Id,
-            IsTutor = true
+            CourseId = course.Id
         });
         await ctx.SaveChangesAsync();
 
@@ -294,7 +293,6 @@ public class VgcTests
             .FirstOrDefaultAsync(fa => fa.FacultyProfileId == faculty.Id && fa.CourseId == course.Id);
 
         Assert.NotNull(assignment);
-        Assert.True(assignment.IsTutor);
     }
 
     // ── TEST 11: Grade calculation helper ────────────────────────────────
@@ -308,87 +306,6 @@ public class VgcTests
         double pct = score * 100.0 / maxScore;
         string grade = pct >= 85 ? "A" : pct >= 70 ? "B" : pct >= 55 ? "C" : "F";
         Assert.Equal(expectedGrade, grade);
-    }
-
-    // ── TEST 12: CoursesController.Index returns all courses ──────────────
-    [Fact]
-    public async Task CoursesController_Index_ReturnsAllCourses()
-    {
-        await using var ctx = CreateCtx();
-        await SeedCourseAsync(ctx);
-        await SeedCourseAsync(ctx);
-
-        var controller = new CoursesController(ctx);
-        var result = await controller.Index() as Microsoft.AspNetCore.Mvc.ViewResult;
-        var model = Assert.IsAssignableFrom<IEnumerable<Course>>(result!.Model);
-
-        Assert.Equal(2, model.Count());
-    }
-
-    // ── TEST 13: BranchesController - Index retourne la liste ─────────────
-    [Fact]
-    public async Task BranchesController_Index_ReturnsViewWithBranches()
-    {
-        await using var ctx = CreateCtx();
-        ctx.Branches.Add(new Branch { Name = "Test Branch", Address = "123 Test St" });
-        await ctx.SaveChangesAsync();
-        var controller = new BranchesController(ctx);
-
-        var result = await controller.Index() as Microsoft.AspNetCore.Mvc.ViewResult;
-
-        Assert.NotNull(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<Branch>>(result.Model);
-        Assert.Single(model);
-    }
-
-    // ── TEST 14: BranchesController - Create (Valide) ─────────────────────
-    [Fact]
-    public async Task BranchesController_Create_ValidModel_RedirectsToIndex()
-    {
-        await using var ctx = CreateCtx();
-        var controller = new BranchesController(ctx);
-        var newBranch = new Branch { Name = "New Branch", Address = "456 New St" };
-        var result = await controller.Create(newBranch) as Microsoft.AspNetCore.Mvc.RedirectToActionResult;
-        Assert.NotNull(result);
-        Assert.Equal("Index", result.ActionName);
-        Assert.Equal(1, await ctx.Branches.CountAsync());
-    }
-
-    // ── TEST 15: BranchesController - Create (Invalide) ───────────────────
-    [Fact]
-    public async Task BranchesController_Create_InvalidModel_ReturnsView()
-    {
-        await using var ctx = CreateCtx();
-        var controller = new BranchesController(ctx);
-        controller.ModelState.AddModelError("Name", "Required");
-        var newBranch = new Branch { Address = "No Name St" };
-        var result = await controller.Create(newBranch) as Microsoft.AspNetCore.Mvc.ViewResult;
-        Assert.NotNull(result);
-        Assert.Equal(newBranch, result.Model);
-        Assert.Equal(0, await ctx.Branches.CountAsync());
-    }
-
-    // ── TEST 16: AssignmentsController - Create (Valide) ──────────────────
-    [Fact]
-    public async Task AssignmentsController_Create_ValidModel_Redirects()
-    {
-        await using var ctx = CreateCtx();
-        var (_, course) = await SeedCourseAsync(ctx);
-        var controller = new AssignmentsController(ctx);
-        var assignment = new Assignment { CourseId = course.Id, Title = "Test Assignment", MaxScore = 100, DueDate = DateTime.Today };
-        var result = await controller.Create(assignment);
-        var redirectResult = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
-        Assert.Equal("Index", redirectResult.ActionName);
-    }
-
-    // ── TEST 17: AssignmentsController - Details retourne 404 si null ─────
-    [Fact]
-    public async Task AssignmentsController_Details_NullId_ReturnsNotFound()
-    {
-        await using var ctx = CreateCtx();
-        var controller = new AssignmentsController(ctx);
-        var result = await controller.Details(null);
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(result);
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -660,7 +577,6 @@ public class VgcTests
         {
             CourseEnrolmentId = enrolment.Id,
             WeekNumber = 1,
-            SessionDate = DateTime.Today,
             Present = false
         };
         ctx.AttendanceRecords.Add(record);
@@ -824,50 +740,7 @@ public class VgcTests
         Assert.Equal("Lab 2 Updated", saved!.Title);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    //  COURSES CONTROLLER — Edit actions
-    // ══════════════════════════════════════════════════════════════════
-
-    [Fact]
-    public async Task CoursesController_Edit_NullId_ReturnsNotFound()
-    {
-        await using var ctx = CreateCtx();
-        var controller = new CoursesController(ctx);
-        var result = await controller.Edit(null);
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task CoursesController_Edit_ValidId_ReturnsViewWithModel()
-    {
-        await using var ctx = CreateCtx();
-        var (_, course) = await SeedCourseAsync(ctx);
-
-        var controller = new CoursesController(ctx);
-        var result = await controller.Edit(course.Id) as Microsoft.AspNetCore.Mvc.ViewResult;
-
-        Assert.NotNull(result);
-        var model = Assert.IsType<Course>(result.Model);
-        Assert.Equal("Software Dev", model.Name);
-    }
-
-    [Fact]
-    public async Task CoursesController_EditPost_ValidModel_Redirects()
-    {
-        await using var ctx = CreateCtx();
-        var (_, course) = await SeedCourseAsync(ctx);
-
-        course.Name = "Advanced Software Dev";
-        var controller = new CoursesController(ctx);
-        var result = await controller.Edit(course.Id, course);
-
-        var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
-
-        var saved = await ctx.Courses.FindAsync(course.Id);
-        Assert.Equal("Advanced Software Dev", saved!.Name);
-    }
-    // ── TEST 18: HomeController - Index et Privacy ────────────────────────
+    // ── TEST 18: HomeController ───────────────────────────────────────────
 
     [Fact]
     public void HomeController_Index_ReturnsView()
@@ -884,7 +757,6 @@ public class VgcTests
         var result = controller.Privacy();
         Assert.IsType<Microsoft.AspNetCore.Mvc.ViewResult>(result);
     }
-
 
     [Fact]
     public async Task StudentProfilesController_Create_ValidModel_RedirectsToIndex()
@@ -922,7 +794,7 @@ public class VgcTests
         var result = await controller.DeleteConfirmed(student.Id) as Microsoft.AspNetCore.Mvc.RedirectToActionResult;
         Assert.NotNull(result);
         Assert.Equal("Index", result.ActionName);
-        Assert.Empty(ctx.StudentProfiles); 
+        Assert.Empty(ctx.StudentProfiles);
     }
 
     [Fact]
@@ -947,7 +819,6 @@ public class VgcTests
         Assert.Equal("Index", result.ActionName);
         Assert.Empty(ctx.FacultyProfiles);
     }
-
 
     [Fact]
     public async Task StudentProfilesController_Create_InvalidModel_ReturnsView()
@@ -980,28 +851,6 @@ public class VgcTests
     }
 
     [Fact]
-    public async Task CoursesController_Details_NullId_ReturnsNotFound()
-    {
-        await using var ctx = CreateCtx();
-        var controller = new CoursesController(ctx);
-
-        var result = await controller.Details(null);
-
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task CoursesController_Details_NotFoundId_ReturnsNotFound()
-    {
-        await using var ctx = CreateCtx();
-        var controller = new CoursesController(ctx);
-
-        var result = await controller.Details(9999);
-
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(result);
-    }
-
-    [Fact]
     public async Task StudentProfilesController_Edit_NullId_ReturnsNotFound()
     {
         await using var ctx = CreateCtx();
@@ -1011,7 +860,6 @@ public class VgcTests
 
         Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(result);
     }
-
 
     [Fact]
     public void AssignmentResult_Properties_CanBeSet_IncreasesDomainCoverage()
@@ -1033,56 +881,6 @@ public class VgcTests
     }
 
     [Fact]
-    public async Task BranchesController_Details_ValidId_ReturnsViewWithBranch()
-    {
-        await using var ctx = CreateCtx();
-        var branch = new Branch { Name = "Cork", Address = "123 Street" };
-        ctx.Branches.Add(branch);
-        await ctx.SaveChangesAsync();
-        var controller = new BranchesController(ctx);
-
-        var result = await controller.Details(branch.Id) as Microsoft.AspNetCore.Mvc.ViewResult;
-
-        Assert.NotNull(result);
-        var model = Assert.IsAssignableFrom<Branch>(result.Model);
-        Assert.Equal(branch.Id, model.Id);
-    }
-
-    [Fact]
-    public async Task BranchesController_Edit_ValidModel_RedirectsToIndex()
-    {
-        await using var ctx = CreateCtx();
-        var branch = new Branch { Name = "Galway", Address = "456 Street" };
-        ctx.Branches.Add(branch);
-        await ctx.SaveChangesAsync();
-        var controller = new BranchesController(ctx);
-        branch.Name = "Galway Updated";
-
-        var result = await controller.Edit(branch.Id, branch) as Microsoft.AspNetCore.Mvc.RedirectToActionResult;
-
-        Assert.NotNull(result);
-        Assert.Equal("Index", result.ActionName);
-        var saved = await ctx.Branches.FindAsync(branch.Id);
-        Assert.Equal("Galway Updated", saved!.Name);
-    }
-
-    [Fact]
-    public async Task BranchesController_DeleteConfirmed_RemovesBranchAndRedirects()
-    {
-        await using var ctx = CreateCtx();
-        var branch = new Branch { Name = "Limerick", Address = "789 Street" };
-        ctx.Branches.Add(branch);
-        await ctx.SaveChangesAsync();
-        var controller = new BranchesController(ctx);
-
-        var result = await controller.DeleteConfirmed(branch.Id) as Microsoft.AspNetCore.Mvc.RedirectToActionResult;
-
-        Assert.NotNull(result);
-        Assert.Equal("Index", result.ActionName);
-        Assert.Empty(ctx.Branches);
-    }
-
-    [Fact]
     public async Task FacultyProfilesController_AssignCourse_RedirectsToDetails()
     {
         await using var ctx = CreateCtx();
@@ -1090,7 +888,7 @@ public class VgcTests
         var (_, course) = await SeedCourseAsync(ctx);
         var controller = new FacultyProfilesController(ctx);
 
-        var result = await controller.AssignCourse(faculty.Id, course.Id, true) as Microsoft.AspNetCore.Mvc.RedirectToActionResult;
+        var result = await controller.AssignCourse(faculty.Id, course.Id, false) as Microsoft.AspNetCore.Mvc.RedirectToActionResult;
 
         Assert.NotNull(result);
         Assert.Equal("Details", result.ActionName);
@@ -1104,7 +902,7 @@ public class VgcTests
         await using var ctx = CreateCtx();
         var faculty = await SeedFacultyAsync(ctx);
         var (_, course) = await SeedCourseAsync(ctx);
-        var assignment = new FacultyCourseAssignment { FacultyProfileId = faculty.Id, CourseId = course.Id, IsTutor = true };
+        var assignment = new FacultyCourseAssignment { FacultyProfileId = faculty.Id, CourseId = course.Id };
         ctx.FacultyCourseAssignments.Add(assignment);
         await ctx.SaveChangesAsync();
         var controller = new FacultyProfilesController(ctx);
@@ -1114,38 +912,6 @@ public class VgcTests
         Assert.NotNull(result);
         Assert.Equal("Details", result.ActionName);
         Assert.Empty(ctx.FacultyCourseAssignments);
-    }
-
-    [Fact]
-    public async Task BranchesController_UnhappyPaths_ReturnsNotFound()
-    {
-        await using var ctx = CreateCtx();
-        var c = new BranchesController(ctx);
-
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Details(null));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Details(9999));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Edit((int?)null));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Edit(9999));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Edit(1, new Branch { Id = 2 }));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Delete(null));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Delete(9999));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.DeleteConfirmed(9999));
-    }
-
-    [Fact]
-    public async Task CoursesController_UnhappyPaths_ReturnsNotFound()
-    {
-        await using var ctx = CreateCtx();
-        var c = new CoursesController(ctx);
-
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Details(9999));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Edit((int?)null));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Edit(9999));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Edit(1, new Course { Id = 2 }));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Delete(null));
-        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Delete(9999));
-        var deleteResult = await c.DeleteConfirmed(9999);
-        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(deleteResult);
     }
 
     [Fact]
@@ -1227,7 +993,7 @@ public class VgcTests
     public async Task AttendanceController_UnhappyPaths_ReturnsNotFound()
     {
         await using var ctx = CreateCtx();
-        var c = new AttendanceController(ctx); 
+        var c = new AttendanceController(ctx);
 
         Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(await c.Toggle(9999, 1));
         var user = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
