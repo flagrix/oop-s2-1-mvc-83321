@@ -188,6 +188,4 @@ public class ValidationTests
         Assert.True(result.Grade.Length <= 5);
     }
 
-    [Fact]
-
 }
