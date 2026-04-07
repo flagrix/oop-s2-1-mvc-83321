@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: ["main"]
+    branches: ["master"]
   pull_request:
-    branches: ["main"]
+    branches: ["master"]
   workflow_dispatch:
 
 env:
@@ -64,7 +64,7 @@ jobs:
           path: coveragereport
 
       - name: Upload Pages artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./coveragereport
@@ -91,7 +91,7 @@ jobs:
         run: echo "Deploy step"
 
   deploy-pages:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: build-test-publish
     runs-on: ubuntu-latest
     environment:
