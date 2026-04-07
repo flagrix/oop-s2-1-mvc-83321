@@ -222,7 +222,7 @@ public void AttendanceRecord_Present_DefaultsFalse()
 [InlineData("", false)]
 [InlineData(null, false)]
 [InlineData("alice@vgc.ie", true)]
-[InlineData("notanemail", true)] // format validation is handled by [EmailAddress]
+[InlineData("notanemail", false)] // format validation is handled by [EmailAddress]
 public void StudentProfile_EmailPresence(string? email, bool shouldPass)
 {
     var s = new StudentProfile
